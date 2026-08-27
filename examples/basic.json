@@ -1,0 +1,21 @@
+{
+  "sourceKey": "example/hello#working-tree",
+  "title": "Add a greeting",
+  "repository": "example/hello",
+  "baseRef": "main",
+  "headRef": "working-tree",
+  "steps": [
+    {
+      "stepId": "greeting",
+      "diffHash": "d87225bed3e7ca72",
+      "action": "Add the greeting module",
+      "takeaway": "Introduces the greeting exported by the example package.",
+      "risk": "Low",
+      "filePath": "src/greet.ts",
+      "fileName": "greet.ts",
+      "diff": "diff --git a/src/greet.ts b/src/greet.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/greet.ts\n@@ -0,0 +1 @@\n+export const greeting = \"hello\";\n",
+      "isCodegen": false,
+      "isTest": false
+    }
+  ]
+}
