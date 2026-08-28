@@ -156,15 +156,6 @@ function renderReplay(replay: Replay): void {
           ]),
           element("div", { className: "header-actions" }, [
             segmentedControl(),
-            button(
-              "Flag",
-              "button secondary",
-              () =>
-                void setStatus(
-                  activeStep.stepId,
-                  replay.state.stepStatus[activeStep.stepId] === "flagged" ? null : "flagged",
-                ),
-            ),
             button("Approve & next", "button primary", () => void approveAndAdvance()),
           ]),
         ]),
@@ -210,16 +201,25 @@ function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number
       { className: "step-list", ariaLabel: "Replay steps" },
       replay.steps.map((step, index) => {
         const status = replay.state.stepStatus[step.stepId];
+        const badge = element("span", {
+          className: "step-index",
+          text: status === "approved" ? "✓" : status === "flagged" ? "!" : String(index + 1),
+        });
+        if (status === "approved") {
+          badge.title = "Unapprove";
+          badge.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void setStatus(step.stepId, null);
+          });
+        }
         return element(
           "button",
           {
             className: `step-row ${step.stepId === activeStep.stepId ? "active" : ""} ${status ?? ""}`,
           },
           [
-            element("span", {
-              className: "step-index",
-              text: status === "approved" ? "✓" : status === "flagged" ? "!" : String(index + 1),
-            }),
+            badge,
             element("span", { className: "step-copy" }, [
               element("strong", { text: step.action }),
               element("small", { text: step.fileName }),
