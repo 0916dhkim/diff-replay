@@ -236,6 +236,15 @@ pre {
   overflow: hidden;
 }
 
+.workspace.sidebars-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace.sidebars-hidden .step-rail,
+.workspace.sidebars-hidden .notes-panel {
+  display: none;
+}
+
 .step-rail,
 .notes-panel {
   display: flex;

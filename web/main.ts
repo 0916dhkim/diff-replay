@@ -11,6 +11,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 let currentReplay: Replay | null = null;
 let eventSource: EventSource | null = null;
 let viewMode: "split" | "unified" = "split";
+let sidebarsHidden = false;
 let routeGeneration = 0;
 let mutationQueue: Promise<unknown> = Promise.resolve();
 
@@ -23,6 +24,18 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "Space" && currentReplay) {
     event.preventDefault();
     void approveAndAdvance();
+  }
+  if (
+    event.key === "z" &&
+    !event.repeat &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    currentReplay
+  ) {
+    event.preventDefault();
+    sidebarsHidden = !sidebarsHidden;
+    document.querySelector(".workspace")?.classList.toggle("sidebars-hidden", sidebarsHidden);
   }
 });
 
@@ -130,7 +143,7 @@ function renderReplay(replay: Replay): void {
   ).length;
 
   app.replaceChildren(
-    element("div", { className: "workspace" }, [
+    element("div", { className: `workspace${sidebarsHidden ? " sidebars-hidden" : ""}` }, [
       renderStepRail(replay, activeStep, approved),
       element("main", { className: "review-main" }, [
         element("header", { className: "review-header" }, [
