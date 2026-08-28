@@ -268,7 +268,7 @@ function renderNote(note: ReviewNote): HTMLElement {
       element("span", { text: note.stepId ? `Step ${note.stepId}` : "General" }),
       element(
         "button",
-        { className: "note-delete", text: "Delete" },
+        { className: "note-delete", text: "Delete", type: "button" },
         [],
         () => void deleteNote(note.id),
       ),
@@ -355,7 +355,7 @@ async function addNote(text: string, stepId: string): Promise<void> {
 async function deleteNote(noteId: string): Promise<void> {
   const replayId = currentReplay?.id;
   if (!replayId) return;
-  await mutateReplay(replayId, `/api/replays/${replayId}/notes/${noteId}`, {
+  await mutateReplay(replayId, `/api/replays/${replayId}/notes/${encodeURIComponent(noteId)}`, {
     method: "DELETE",
   });
 }
@@ -548,10 +548,11 @@ function parseDiff(diff: string): ParsedFile[] {
 }
 
 async function api<T = unknown>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+  const headers = new Headers(init?.headers);
+  if (init?.body != null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const response = await fetch(url, { ...init, headers });
   if (!response.ok)
     throw new Error((await response.text()) || `Request failed: ${response.status}`);
   return (await response.json()) as T;

@@ -56,6 +56,29 @@ describe("replay API", () => {
     expect(secondRead.json<{ replay: Replay }>().replay.state.stepStatus).toEqual({});
   });
 
+  it("adds and deletes notes", async () => {
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/replays",
+      payload: makeReplay("repo#notes"),
+    });
+    const replay = created.json<{ replay: Replay }>().replay;
+    const added = await app.inject({
+      method: "POST",
+      url: `/api/replays/${replay.id}/notes`,
+      payload: { text: "looks wrong", stepId: "1.1" },
+    });
+    const noteId = added.json<{ replay: Replay }>().replay.state.notes[0]!.id;
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: `/api/replays/${replay.id}/notes/${noteId}`,
+    });
+
+    expect(added.statusCode).toBe(201);
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json<{ replay: Replay }>().replay.state.notes).toEqual([]);
+  });
+
   it("rejects state updates for unknown steps", async () => {
     const created = await app.inject({
       method: "POST",
