@@ -439,14 +439,16 @@ function renderUnifiedHunk(hunk: ParsedHunk): HTMLElement {
 }
 
 function renderSplitHunk(hunk: ParsedHunk): HTMLElement {
-  const rows: HTMLElement[] = [];
+  const left: HTMLElement[] = [];
+  const right: HTMLElement[] = [];
   let oldLine = hunk.oldStart;
   let newLine = hunk.newStart;
   let index = 0;
   while (index < hunk.lines.length) {
     const line = hunk.lines[index]!;
     if (line.type === "context") {
-      rows.push(splitRow(String(oldLine++), line, String(newLine++), line));
+      left.push(diffHalf(String(oldLine++), line));
+      right.push(diffHalf(String(newLine++), line));
       index += 1;
       continue;
     }
@@ -461,28 +463,17 @@ function renderSplitHunk(hunk: ParsedHunk): HTMLElement {
     for (let row = 0; row < rowCount; row += 1) {
       const deletion = deletions[row];
       const addition = additions[row];
-      rows.push(
-        splitRow(
-          deletion ? String(oldLine++) : "",
-          deletion,
-          addition ? String(newLine++) : "",
-          addition,
-        ),
-      );
+      left.push(diffHalf(deletion ? String(oldLine++) : "", deletion));
+      right.push(diffHalf(addition ? String(newLine++) : "", addition));
     }
   }
-  return element("div", { className: "split-lines" }, rows);
-}
-
-function splitRow(
-  oldNumber: string,
-  oldLine: ParsedLine | undefined,
-  newNumber: string,
-  newLine: ParsedLine | undefined,
-): HTMLElement {
-  return element("div", { className: "split-row" }, [
-    diffHalf(oldNumber, oldLine),
-    diffHalf(newNumber, newLine),
+  return element("div", { className: "split-lines" }, [
+    element("div", { className: "split-pane" }, [
+      element("div", { className: "split-pane-inner" }, left),
+    ]),
+    element("div", { className: "split-pane" }, [
+      element("div", { className: "split-pane-inner" }, right),
+    ]),
   ]);
 }
 
