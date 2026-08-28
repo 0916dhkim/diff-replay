@@ -576,15 +576,19 @@ pre {
   font-size: 11px;
 }
 
-.split-lines,
+.split-lines {
+  width: 100%;
+}
+
 .unified-lines {
   min-width: max-content;
+  width: 100%;
 }
 
 .split-row {
   display: grid;
-  min-width: 100%;
-  grid-template-columns: minmax(50%, 1fr) minmax(50%, 1fr);
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .diff-half,
@@ -598,17 +602,25 @@ pre {
 }
 
 .diff-half {
-  grid-template-columns: 52px 24px minmax(max-content, 1fr);
+  min-width: 0;
+  overflow: hidden;
+  grid-template-columns: 52px 24px minmax(0, 1fr);
   border-right: 1px solid var(--border);
 }
 
+.diff-half:last-child {
+  border-right: 0;
+}
+
 .diff-row {
-  grid-template-columns: 52px 52px 24px minmax(max-content, 1fr);
+  grid-template-columns: 52px 52px 24px minmax(0, 1fr);
 }
 
 .diff-half code,
 .diff-row code {
+  min-width: 0;
   padding: 0 12px;
+  overflow-x: auto;
   white-space: pre;
 }
 
@@ -671,8 +683,11 @@ pre {
   border-right: 1px solid var(--border);
 }
 
-.empty {
-  background-color: #0d1117;
+.empty,
+.empty .line-number,
+.empty .line-prefix,
+.empty code {
+  background-color: #090d13;
   background-image: none;
 }
 
