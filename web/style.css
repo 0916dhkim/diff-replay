@@ -466,6 +466,11 @@ pre {
   margin: 0 auto;
 }
 
+.workspace.sidebars-hidden .step-intro,
+.workspace.sidebars-hidden .diff-stack {
+  width: 100%;
+}
+
 .step-intro {
   margin-bottom: 25px;
 }
