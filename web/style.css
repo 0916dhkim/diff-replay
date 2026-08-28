@@ -358,6 +358,24 @@ pre {
   font-size: 10px;
 }
 
+.step-copy-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.step-copy-meta small {
+  margin-top: 0;
+}
+
+.step-copy-meta .type-badge {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  font-size: 8px;
+}
+
 .review-main {
   display: flex;
   min-width: 0;

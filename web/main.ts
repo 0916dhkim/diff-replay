@@ -222,7 +222,14 @@ function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number
             badge,
             element("span", { className: "step-copy" }, [
               element("strong", { text: step.action }),
-              element("small", { text: step.fileName }),
+              ...(step.isCodegen || step.isTest
+                ? [
+                    element("span", { className: "step-copy-meta" }, [
+                      typeBadge(step),
+                      element("small", { text: step.fileName }),
+                    ]),
+                  ]
+                : [element("small", { text: step.fileName })]),
             ]),
           ],
           () => void selectStep(step.stepId),
