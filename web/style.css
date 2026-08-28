@@ -575,6 +575,7 @@ pre {
   background: #161b22;
   font-family: "DM Mono", monospace;
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .split-lines {

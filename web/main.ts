@@ -404,9 +404,13 @@ function renderDiff(step: AtomicStep): HTMLElement {
     { className: `diff-stack ${viewMode}` },
     files.map((file) => {
       const body = element("div", { className: "diff-body" });
-      for (const hunk of file.hunks) {
-        body.append(element("div", { className: "hunk-header", text: hunk.header }));
-        body.append(viewMode === "split" ? renderSplitHunk(hunk) : renderUnifiedHunk(hunk));
+      if (viewMode === "split") {
+        body.append(renderSplitFile(file));
+      } else {
+        for (const hunk of file.hunks) {
+          body.append(element("div", { className: "hunk-header", text: hunk.header }));
+          body.append(renderUnifiedHunk(hunk));
+        }
       }
       return element("article", { className: "diff-file" }, [
         element("header", {}, [element("code", { text: file.path })]),
@@ -438,9 +442,25 @@ function renderUnifiedHunk(hunk: ParsedHunk): HTMLElement {
   return element("div", { className: "unified-lines" }, rows);
 }
 
-function renderSplitHunk(hunk: ParsedHunk): HTMLElement {
+function renderSplitFile(file: ParsedFile): HTMLElement {
   const left: HTMLElement[] = [];
   const right: HTMLElement[] = [];
+  for (const hunk of file.hunks) {
+    left.push(element("div", { className: "hunk-header", text: hunk.header }));
+    right.push(element("div", { className: "hunk-header", text: hunk.header }));
+    appendSplitHunk(hunk, left, right);
+  }
+  return element("div", { className: "split-lines" }, [
+    element("div", { className: "split-pane" }, [
+      element("div", { className: "split-pane-inner" }, left),
+    ]),
+    element("div", { className: "split-pane" }, [
+      element("div", { className: "split-pane-inner" }, right),
+    ]),
+  ]);
+}
+
+function appendSplitHunk(hunk: ParsedHunk, left: HTMLElement[], right: HTMLElement[]): void {
   let oldLine = hunk.oldStart;
   let newLine = hunk.newStart;
   let index = 0;
@@ -467,14 +487,6 @@ function renderSplitHunk(hunk: ParsedHunk): HTMLElement {
       right.push(diffHalf(addition ? String(newLine++) : "", addition));
     }
   }
-  return element("div", { className: "split-lines" }, [
-    element("div", { className: "split-pane" }, [
-      element("div", { className: "split-pane-inner" }, left),
-    ]),
-    element("div", { className: "split-pane" }, [
-      element("div", { className: "split-pane-inner" }, right),
-    ]),
-  ]);
 }
 
 function diffHalf(number: string, line: ParsedLine | undefined): HTMLElement {
