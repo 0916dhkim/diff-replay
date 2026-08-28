@@ -564,11 +564,14 @@ pre {
 }
 
 .diff-body {
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr);
   overflow-x: auto;
 }
 
 .hunk-header {
-  min-width: max-content;
+  width: 100%;
+  box-sizing: border-box;
   padding: 6px 12px;
   color: #8b949e;
   background: #161b22;
@@ -577,7 +580,9 @@ pre {
 }
 
 .split-lines {
+  display: grid;
   width: 100%;
+  grid-template-columns: 52px 24px minmax(max-content, 1fr) 52px 24px minmax(max-content, 1fr);
 }
 
 .unified-lines {
@@ -587,8 +592,8 @@ pre {
 
 .split-row {
   display: grid;
-  width: 100%;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
 }
 
 .diff-half,
@@ -602,9 +607,8 @@ pre {
 }
 
 .diff-half {
-  min-width: 0;
-  overflow: hidden;
-  grid-template-columns: 52px 24px minmax(0, 1fr);
+  grid-column: span 3;
+  grid-template-columns: subgrid;
   border-right: 1px solid var(--border);
 }
 
@@ -613,14 +617,12 @@ pre {
 }
 
 .diff-row {
-  grid-template-columns: 52px 52px 24px minmax(0, 1fr);
+  grid-template-columns: 52px 52px 24px minmax(max-content, 1fr);
 }
 
 .diff-half code,
 .diff-row code {
-  min-width: 0;
   padding: 0 12px;
-  overflow-x: auto;
   white-space: pre;
 }
 
