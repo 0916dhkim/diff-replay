@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReplayStore, replayIdForSource } from "../src/storage.js";
+import { computeCanonicalDiffHash } from "../src/review-content-hash.js";
 import { makeReplay, makeStep } from "./fixtures.js";
 
 describe("ReplayStore", () => {
@@ -136,5 +137,175 @@ describe("ReplayStore", () => {
     );
 
     await expect(store.get(mismatchedId)).rejects.toThrow("snapshot identity mismatch");
+  });
+
+  it("ignores producer-supplied diffHash and persists canonical hash", async () => {
+    const input = makeReplay("repo#hash-override");
+    input.steps = [
+      {
+        ...makeStep("1.1", "+const calculated = true;"),
+        diffHash: "ffffffffffffffff",
+      },
+    ];
+
+    const synchronized = await store.sync(input);
+    const expectedHash = computeCanonicalDiffHash({
+      filePath: "src/1.1.ts",
+      diff: "+const calculated = true;",
+    });
+
+    expect(synchronized.steps[0]!.diffHash).toBe(expectedHash);
+    expect(synchronized.steps[0]!.diffHash).not.toBe("ffffffffffffffff");
+  });
+
+  it("migrates legacy snapshots and preserves approved and flagged decisions across volatile diff changes", async () => {
+    const sourceKey = "repo#migration";
+    const replayId = replayIdForSource(sourceKey);
+    const replayDirectory = path.join(directory, "replays", replayId);
+    await mkdir(replayDirectory, { recursive: true });
+
+    const legacyDiff1 = [
+      "diff --git a/src/a.ts b/src/a.ts",
+      "index 1111111..2222222 100644",
+      "--- a/src/a.ts",
+      "+++ b/src/a.ts",
+      "@@ -1,3 +1,4 @@",
+      " old context 1",
+      "+const answer = 42;",
+      " old context 2",
+    ].join("\n");
+
+    const legacyDiff2 = [
+      "diff --git a/src/b.ts b/src/b.ts",
+      "index 3333333..4444444 100644",
+      "--- a/src/b.ts",
+      "+++ b/src/b.ts",
+      "@@ -1,3 +1,4 @@",
+      " old context 3",
+      "+const flagMe = true;",
+      " old context 4",
+    ].join("\n");
+
+    const legacySnapshot = {
+      id: replayId,
+      sourceKey,
+      title: "Legacy Replay",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      steps: [
+        {
+          stepId: "1.1",
+          diffHash: "aaaaaaaaaaaaaaaa",
+          action: "Step 1",
+          takeaway: "Takeaway 1",
+          risk: "Low",
+          diff: legacyDiff1,
+          filePath: "src/a.ts",
+          fileName: "a.ts",
+          isCodegen: false,
+          isTest: false,
+        },
+        {
+          stepId: "1.2",
+          diffHash: "bbbbbbbbbbbbbbbb",
+          action: "Step 2",
+          takeaway: "Takeaway 2",
+          risk: "Medium",
+          diff: legacyDiff2,
+          filePath: "src/b.ts",
+          fileName: "b.ts",
+          isCodegen: false,
+          isTest: false,
+        },
+      ],
+      state: {
+        activeStepId: "1.1",
+        stepStatus: {
+          "1.1": "approved",
+          "1.2": "flagged",
+        },
+        notes: [],
+      },
+    };
+
+    await writeFile(
+      path.join(replayDirectory, "replay.json"),
+      JSON.stringify(legacySnapshot, null, 2),
+    );
+
+    const shiftedDiff1 = [
+      "diff --git a/src/a.ts b/src/a.ts",
+      "index 9999999..8888888 100644",
+      "--- a/src/a.ts",
+      "+++ b/src/a.ts",
+      "@@ -100,5 +100,6 @@ function shifted() {",
+      " shifted context line",
+      "+const answer = 42;",
+      " trailing context",
+    ].join("\r\n");
+
+    const shiftedDiff2 = [
+      "diff --git a/src/b.ts b/src/b.ts",
+      "--- a/src/b.ts",
+      "+++ b/src/b.ts",
+      "@@ -200,3 +200,4 @@",
+      " different context line",
+      "+const flagMe = true;",
+    ].join("\n");
+
+    const incoming = {
+      sourceKey,
+      title: "Migrated Replay",
+      steps: [
+        {
+          stepId: "1.1",
+          action: "Step 1",
+          takeaway: "Takeaway 1",
+          risk: "Low",
+          diff: shiftedDiff1,
+          filePath: "src/a.ts",
+          fileName: "a.ts",
+          isCodegen: false,
+          isTest: false,
+        },
+        {
+          stepId: "1.2",
+          action: "Step 2",
+          takeaway: "Takeaway 2",
+          risk: "Medium",
+          diff: shiftedDiff2,
+          filePath: "src/b.ts",
+          fileName: "b.ts",
+          isCodegen: false,
+          isTest: false,
+        },
+      ],
+    };
+
+    const synchronized = await store.sync(incoming);
+
+    expect(synchronized.state.stepStatus).toEqual({
+      "1.1": "approved",
+      "1.2": "flagged",
+    });
+
+    const canonical1 = computeCanonicalDiffHash({ filePath: "src/a.ts", diff: shiftedDiff1 });
+    const canonical2 = computeCanonicalDiffHash({ filePath: "src/b.ts", diff: shiftedDiff2 });
+
+    expect(synchronized.steps[0]!.diffHash).toBe(canonical1);
+    expect(synchronized.steps[1]!.diffHash).toBe(canonical2);
+  });
+
+  it("resets review status when reviewed additions or removals actually change", async () => {
+    const input = makeReplay("repo#actual-change");
+    input.steps = [makeStep("1.1", "+const value = 1;")];
+    const initial = await store.sync(input);
+    await store.setStepStatus(initial.id, "1.1", "approved");
+
+    const updated = makeReplay("repo#actual-change");
+    updated.steps = [makeStep("1.1", "+const value = 2;")];
+    const synchronized = await store.sync(updated);
+
+    expect(synchronized.state.stepStatus).toEqual({});
   });
 });

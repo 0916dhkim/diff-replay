@@ -1,6 +1,4 @@
-import { createHash } from "node:crypto";
-
-import type { AtomicStep, ReplayInput } from "../src/contracts.js";
+import type { AtomicStepInput, ReplayInput } from "../src/contracts.js";
 
 export function makeReplay(sourceKey: string, title = sourceKey): ReplayInput {
   return {
@@ -11,10 +9,9 @@ export function makeReplay(sourceKey: string, title = sourceKey): ReplayInput {
   };
 }
 
-export function makeStep(stepId: string, diff: string): AtomicStep {
+export function makeStep(stepId: string, diff: string): AtomicStepInput {
   return {
     stepId,
-    diffHash: createHash("sha256").update(diff).digest("hex").slice(0, 16),
     action: `Update ${stepId}`,
     takeaway: `Changes for ${stepId}`,
     risk: "Low",

@@ -38,7 +38,6 @@ Create a manifest:
   "steps": [
     {
       "stepId": "api-route",
-      "diffHash": "5d5caae0d18adf14",
       "action": "Add the sharing route",
       "takeaway": "Introduces the authenticated endpoint used to share a widget.",
       "risk": "Medium",
@@ -61,8 +60,10 @@ pnpm diff-replay publish ./manifest.json
 You can try the bundled example with `pnpm diff-replay publish examples/basic.json`.
 
 The command prints the stable replay URL. Publishing the same `sourceKey` updates the existing
-replay. Approvals and flags survive only when a step keeps both its `stepId` and `diffHash`; notes
-remain as accumulated review history.
+replay. The server derives a canonical review content hash for each step (`diffHash` is optional on
+input and ignored), so approvals and flags survive across hunk line shifts and volatile diff
+metadata as long as the step keeps its `stepId` and reviewed changes. Notes remain as accumulated
+review history.
 
 ## API
 
@@ -84,9 +85,10 @@ Replay manifests may be up to 100 MiB and contain up to 10,000 uniquely identifi
 
 ## Design boundary
 
-Diff Replay stores, synchronizes, and presents replay manifests. The producer that understands the
-source diff remains responsible for semantic decomposition, stable step IDs, hashes, narrative
-ordering, and exact verification that the steps sum to the original diff.
+Diff Replay stores, synchronizes, and presents replay manifests. The server derives canonical
+review hashes so approvals survive hunk line shifts and patch-metadata-only noise. The producer
+that understands the source diff remains responsible for semantic decomposition, stable step IDs,
+narrative ordering, and exact verification that the steps sum to the original diff.
 
 ## License
 

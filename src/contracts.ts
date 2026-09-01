@@ -41,6 +41,31 @@ const atomicStepsSchema = z
     }
   });
 
+export const atomicStepInputSchema = atomicStepSchema.extend({
+  diffHash: z
+    .string()
+    .regex(/^[a-f0-9]{16,64}$/i)
+    .optional(),
+});
+
+export const atomicStepsInputSchema = z
+  .array(atomicStepInputSchema)
+  .min(1)
+  .max(10_000)
+  .superRefine((steps, context) => {
+    const stepIds = new Set<string>();
+    for (const [index, step] of steps.entries()) {
+      if (stepIds.has(step.stepId)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate step ID: ${step.stepId}`,
+          path: [index, "stepId"],
+        });
+      }
+      stepIds.add(step.stepId);
+    }
+  });
+
 export const replayInputSchema = z.object({
   sourceKey: z.string().min(1).max(500),
   title: z.string().min(1).max(200),
@@ -48,7 +73,7 @@ export const replayInputSchema = z.object({
   repository: z.string().max(500).optional(),
   baseRef: z.string().max(200).optional(),
   headRef: z.string().max(200).optional(),
-  steps: atomicStepsSchema,
+  steps: atomicStepsInputSchema,
 });
 
 export const stepStatusSchema = z.enum(["approved", "flagged"]);
@@ -67,6 +92,7 @@ export const addNoteSchema = z.object({
 });
 
 export type AtomicStep = z.infer<typeof atomicStepSchema>;
+export type AtomicStepInput = z.infer<typeof atomicStepInputSchema>;
 export type ReplayInput = z.infer<typeof replayInputSchema>;
 export type StepStatus = z.infer<typeof stepStatusSchema>;
 

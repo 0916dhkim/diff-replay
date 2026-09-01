@@ -13,6 +13,7 @@ import type {
   ReviewNote,
   StepStatus,
 } from "./contracts.js";
+import { computeCanonicalDiffHash } from "./review-content-hash.js";
 
 export class ReplayNotFoundError extends Error {}
 export class InvalidReplayMutationError extends Error {}
@@ -49,10 +50,14 @@ export class ReplayStore {
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       };
+      const steps: AtomicStep[] = input.steps.map((step) => ({
+        ...step,
+        diffHash: computeCanonicalDiffHash(step),
+      }));
       const replay: Replay = {
         ...metadata,
-        steps: input.steps,
-        state: synchronizeState(existing, input.steps),
+        steps,
+        state: synchronizeState(existing, steps),
       };
       await mkdir(this.replayDirectory(id), { recursive: true });
       await writeJsonAtomically(this.replayPath(id), replay);
@@ -210,7 +215,9 @@ export function replayIdForSource(sourceKey: string): string {
 }
 
 function synchronizeState(existing: Replay | null, steps: AtomicStep[]): ReplayState {
-  const priorHashes = new Map(existing?.steps.map((step) => [step.stepId, step.diffHash]) ?? []);
+  const priorHashes = new Map(
+    existing?.steps.map((step) => [step.stepId, computeCanonicalDiffHash(step)]) ?? [],
+  );
   const stepStatus: Record<string, StepStatus> = {};
   for (const step of steps) {
     const priorStatus =

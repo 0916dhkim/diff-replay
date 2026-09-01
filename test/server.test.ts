@@ -151,4 +151,34 @@ describe("replay API", () => {
       await productionApp.close();
     }
   });
+
+  it("accepts a manifest without diffHash and returns derived canonical hashes", async () => {
+    const payload = {
+      sourceKey: "repo#no-diff-hash",
+      title: "Replay Without Producer Hashes",
+      steps: [
+        {
+          stepId: "step-1",
+          action: "Add greeting",
+          takeaway: "Greeting function added",
+          risk: "Low",
+          diff: "+export const hello = () => 'world';",
+          filePath: "src/hello.ts",
+          fileName: "hello.ts",
+          isCodegen: false,
+          isTest: false,
+        },
+      ],
+    };
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/replays",
+      payload,
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{ replay: Replay }>();
+    expect(body.replay.steps[0]!.diffHash).toMatch(/^[a-f0-9]{64}$/);
+  });
 });
