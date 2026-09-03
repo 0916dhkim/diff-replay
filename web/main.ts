@@ -226,10 +226,10 @@ function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number
                 ? [
                     element("span", { className: "step-copy-meta" }, [
                       typeBadge(step),
-                      element("small", { text: step.fileName }),
+                      element("small", { text: step.stepId }),
                     ]),
                   ]
-                : [element("small", { text: step.fileName })]),
+                : [element("small", { text: step.stepId })]),
             ]),
           ],
           () => void selectStep(step.stepId),
