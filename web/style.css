@@ -799,6 +799,34 @@ pre {
   background: #0d1117;
 }
 
+.note.is-clickable {
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.note.is-clickable:hover {
+  border-color: var(--border-bright);
+  background: #161b22;
+}
+
+.note.is-clickable:focus-visible {
+  outline: none;
+  border-color: #388bfd;
+  box-shadow: 0 0 0 2px rgba(56, 139, 253, 0.3);
+}
+
+.note.active {
+  border-color: #388bfd;
+  background: #1c2738;
+}
+
+.note.active:hover {
+  border-color: #58a6ff;
+  background: #1f2c40;
+}
+
 .note-topline {
   color: var(--lime);
   font-family: "DM Mono", monospace;

@@ -263,26 +263,58 @@ function renderNotes(replay: Replay, activeStep: AtomicStep): HTMLElement {
       element("span", { className: "notes-count", text: String(replay.state.notes.length) }),
     ]),
     replay.state.notes.length
-      ? element("div", { className: "notes-list" }, replay.state.notes.map(renderNote))
+      ? element(
+          "div",
+          { className: "notes-list" },
+          replay.state.notes.map((note) => renderNote(note, replay, activeStep)),
+        )
       : element("div", { className: "notes-empty", text: "Notes from every pass collect here." }),
     form,
   ]);
 }
 
-function renderNote(note: ReviewNote): HTMLElement {
-  return element("article", { className: "note" }, [
-    element("div", { className: "note-topline" }, [
-      element("span", { text: note.stepId ? `Step ${note.stepId}` : "General" }),
-      element(
-        "button",
-        { className: "note-delete", text: "Delete", type: "button" },
-        [],
-        () => void deleteNote(note.id),
-      ),
-    ]),
-    element("p", { text: note.text }),
-    element("time", { text: relativeTime(note.createdAt), title: note.createdAt }),
-  ]);
+function renderNote(note: ReviewNote, replay: Replay, activeStep: AtomicStep): HTMLElement {
+  const hasStep = Boolean(note.stepId && replay.steps.some((step) => step.stepId === note.stepId));
+  const isActive = Boolean(note.stepId && note.stepId === activeStep.stepId);
+  const card = element(
+    "article",
+    {
+      className: `note${hasStep ? " is-clickable" : ""}${isActive ? " active" : ""}`,
+    },
+    [
+      element("div", { className: "note-topline" }, [
+        element("span", { text: note.stepId ? `Step ${note.stepId}` : "General" }),
+        element(
+          "button",
+          { className: "note-delete", text: "Delete", type: "button" },
+          [],
+          (event) => {
+            event.stopPropagation();
+            void deleteNote(note.id);
+          },
+        ),
+      ]),
+      element("p", { text: note.text }),
+      element("time", { text: relativeTime(note.createdAt), title: note.createdAt }),
+    ],
+    hasStep && note.stepId
+      ? () => {
+          void selectStep(note.stepId!);
+        }
+      : undefined,
+  );
+  if (hasStep && note.stepId) {
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `Open step ${note.stepId}`);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void selectStep(note.stepId!);
+      }
+    });
+  }
+  return card;
 }
 
 function segmentedControl(): HTMLElement {
@@ -317,6 +349,7 @@ function typeBadge(step: AtomicStep): HTMLElement {
 async function selectStep(stepId: string): Promise<boolean> {
   const replay = currentReplay;
   if (!replay) return false;
+  if (replay.state.activeStepId === stepId) return true;
   const updated = await mutateReplay(replay.id, `/api/replays/${replay.id}/state`, {
     method: "PATCH",
     body: JSON.stringify({ activeStepId: stepId }),
@@ -597,7 +630,7 @@ function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   attributes: Record<string, string> = {},
   children: (HTMLElement | string)[] = [],
-  onClick?: () => void,
+  onClick?: (event: Event) => void,
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attributes)) {
