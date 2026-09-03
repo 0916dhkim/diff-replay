@@ -585,14 +585,60 @@ pre {
 }
 
 .diff-file > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   overflow: hidden;
-  padding: 10px 13px;
+  padding: 7px 13px;
   border-bottom: 1px solid var(--border);
   color: #c9d1d9;
   background: #161b22;
   font-size: 12px;
+  white-space: nowrap;
+}
+
+.diff-file > header code {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.copy-path-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--faint);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.copy-path-button:hover {
+  border-color: var(--border);
+  color: var(--text);
+  background: var(--surface-soft);
+}
+
+.copy-path-button:focus-visible {
+  outline: none;
+  border-color: #388bfd;
+  box-shadow: 0 0 0 2px rgba(56, 139, 253, 0.3);
+}
+
+.copy-path-button.copied {
+  border-color: rgba(46, 160, 67, 0.4);
+  color: #3fb950;
+  background: rgba(46, 160, 67, 0.15);
 }
 
 .diff-body {

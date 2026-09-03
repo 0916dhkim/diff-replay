@@ -449,6 +449,68 @@ interface ParsedLine {
   content: string;
 }
 
+const COPY_ICON_SVG =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path></svg>';
+
+const CHECK_ICON_SVG =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path></svg>';
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back to execCommand below.
+    }
+  }
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    textarea.style.pointerEvents = "none";
+    document.body.append(textarea);
+    textarea.focus();
+    textarea.select();
+    const successful = document.execCommand("copy");
+    textarea.remove();
+    return successful;
+  } catch {
+    return false;
+  }
+}
+
+function renderCopyPathButton(path: string): HTMLElement {
+  const button = element("button", {
+    className: "copy-path-button",
+    type: "button",
+    ariaLabel: "Copy file path",
+  });
+  button.title = "Copy file path";
+  button.innerHTML = COPY_ICON_SVG;
+  let resetTimer: number | null = null;
+  button.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    const copied = await copyToClipboard(path);
+    if (!copied) {
+      showToast("Failed to copy file path");
+      return;
+    }
+    button.innerHTML = CHECK_ICON_SVG;
+    button.classList.add("copied");
+    button.title = "Copied!";
+    if (resetTimer != null) window.clearTimeout(resetTimer);
+    resetTimer = window.setTimeout(() => {
+      button.innerHTML = COPY_ICON_SVG;
+      button.classList.remove("copied");
+      button.title = "Copy file path";
+      resetTimer = null;
+    }, 1_500);
+  });
+  return button;
+}
+
 function renderDiff(step: AtomicStep): HTMLElement {
   const files = parseDiff(step.diff);
   if (!files.length) return element("pre", { className: "raw-diff", text: step.diff });
@@ -466,7 +528,10 @@ function renderDiff(step: AtomicStep): HTMLElement {
         }
       }
       return element("article", { className: "diff-file" }, [
-        element("header", {}, [element("code", { text: file.path })]),
+        element("header", {}, [
+          element("code", { text: file.path, title: file.path }),
+          renderCopyPathButton(file.path),
+        ]),
         body,
       ]);
     }),
