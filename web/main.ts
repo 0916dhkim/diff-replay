@@ -776,6 +776,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
   const canvas = element("div", { className: "treemap-canvas" });
   let breadcrumbBar: HTMLElement;
   let activeFiles = fileMetrics;
+  let displayTitle = "";
 
   if (zoomedDirPath !== null) {
     const currentZoom = zoomedDirPath;
@@ -798,7 +799,10 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       }),
     ];
 
-    const parts = currentZoom.split("/");
+    const effectiveTarget = targetNode ? compactToBranchingNode(targetNode) : null;
+    displayTitle = effectiveTarget?.fullPath ?? currentZoom;
+
+    const parts = displayTitle.split("/");
     let accum = "";
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]!;
@@ -833,19 +837,13 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       style: "left: 3px; top: 3px; width: calc(100% - 6px); height: calc(100% - 6px);",
     });
 
-    const effectiveTarget = targetNode ? compactToBranchingNode(targetNode) : null;
-    const displayTitle =
-      effectiveTarget && effectiveTarget.fullPath !== currentZoom
-        ? `${currentZoom} (${effectiveTarget.fullPath})`
-        : currentZoom;
-
-    const dirHeader = element("div", { className: "treemap-dir-header", title: currentZoom }, [
+    const dirHeader = element("div", { className: "treemap-dir-header", title: displayTitle }, [
       element("span", { text: `📁 ${displayTitle}` }),
       element("span", { className: "dir-loc", text: `${zoomedWeight} LOC · Zoomed View` }),
     ]);
 
     const targetBranch: DirectoryBranch = {
-      dirPath: effectiveTarget?.fullPath ?? currentZoom,
+      dirPath: displayTitle,
       node: effectiveTarget ?? {
         name: currentZoom,
         fullPath: currentZoom,
@@ -950,7 +948,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         element("p", {
           text:
             zoomedDirPath !== null
-              ? `Zoomed into folder: ${zoomedDirPath}`
+              ? `Zoomed into folder: ${displayTitle}`
               : "Mechanical diff footprint across touched files in this replay stack.",
         }),
         element("div", { className: "treemap-stats-row" }, [
