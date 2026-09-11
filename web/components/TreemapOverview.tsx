@@ -298,21 +298,6 @@ export default function TreemapOverview(props: TreemapOverviewProps) {
         </nav>
       </Show>
 
-      <section class="spectrum-legend-card">
-        <div class="spectrum-legend-top">
-          <span>MECHANICAL RATIO: r = (Additions - Deletions) / (Additions + Deletions)</span>
-          <span>Size: max(Additions, Deletions)</span>
-        </div>
-        <div class="spectrum-legend-bar" />
-        <div class="spectrum-legend-ticks">
-          <span style={{ color: "#ffa198" }}>-1.0 (100% Deletion · Bright Red)</span>
-          <span style={{ color: "#e5e7eb", "font-weight": 600 }}>
-            0.0 (50% Add / 50% Del · Neutral Gray)
-          </span>
-          <span style={{ color: "#7ee787" }}>+1.0 (100% Addition · Bright Green)</span>
-        </div>
-      </section>
-
       <div class="treemap-canvas">
         <Show
           when={props.zoomedPath !== null}

@@ -1164,48 +1164,6 @@ pre {
   color: var(--text);
 }
 
-.spectrum-legend-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  flex-shrink: 0;
-}
-
-.spectrum-legend-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--muted);
-  font-family: "DM Mono", monospace;
-  font-size: 10.5px;
-}
-
-.spectrum-legend-bar {
-  height: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
-  background: linear-gradient(
-    to right,
-    rgb(218, 54, 51) 0%,
-    rgba(140, 58, 65, 0.9) 25%,
-    rgb(55, 65, 81) 50%,
-    rgba(40, 115, 60, 0.9) 75%,
-    rgb(46, 160, 67) 100%
-  );
-}
-
-.spectrum-legend-ticks {
-  display: flex;
-  justify-content: space-between;
-  color: var(--faint);
-  font-family: "DM Mono", monospace;
-  font-size: 9.5px;
-}
-
 .treemap-breadcrumb-bar {
   display: flex;
   align-items: center;

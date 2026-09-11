@@ -332,7 +332,7 @@ export function getCanvasDimensionHint(): { w: number; h: number } {
   const winW = typeof window !== "undefined" ? window.innerWidth : 1600;
   const winH = typeof window !== "undefined" ? window.innerHeight : 1000;
   const w = Math.max(400, winW - 280);
-  const h = Math.max(300, winH - 260);
+  const h = Math.max(300, winH - 200);
   return { w, h };
 }
 
