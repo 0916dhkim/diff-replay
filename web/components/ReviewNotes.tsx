@@ -12,12 +12,14 @@ interface ReviewNotesProps {
 }
 
 export function ReviewNotes(props: ReviewNotesProps) {
+  let textareaRef: HTMLTextAreaElement | undefined;
   const [noteText, setNoteText] = createSignal("");
 
   const submitNote = () => {
-    const val = noteText().trim();
+    const val = (textareaRef ? textareaRef.value : noteText()).trim();
     if (val) {
       props.onAddNote(val, props.isOverview ? undefined : props.activeStepId);
+      if (textareaRef) textareaRef.value = "";
       setNoteText("");
     }
   };
@@ -90,6 +92,7 @@ export function ReviewNotes(props: ReviewNotesProps) {
       </Show>
       <form class="note-form" onSubmit={handleSubmit}>
         <textarea
+          ref={textareaRef}
           name="note"
           placeholder={
             props.isOverview
