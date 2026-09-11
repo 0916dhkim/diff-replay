@@ -446,31 +446,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
 
   const dirLayout = squarify(dirItems, { x: 0, y: 0, w: 100, h: 100 });
 
-  const hudPath = element("span", {
-    className: "treemap-hud-path",
-    text: "Select a file to inspect",
-  });
-  const hudStats = element("span", {
-    className: "treemap-hud-stats",
-    text: `${fileMetrics.length} files · ${totalMaxLoc} max LOC`,
-  });
-
-  const updateHud = (file: FileChurnMetric): void => {
-    hudPath.textContent = file.filePath;
-    hudStats.replaceChildren(
-      element("span", {
-        style: "color: #7ee787; font-weight: 600;",
-        text: `+${file.additions}`,
-      }),
-      element("span", { style: "color: #ffa198; font-weight: 600;", text: `-${file.deletions}` }),
-      element("span", { text: `· size: ${file.size} · ${file.balanceTag}` }),
-    );
-  };
-
-  if (fileMetrics[0]) updateHud(fileMetrics[0]);
-
   const canvas = element("div", { className: "treemap-canvas" });
-  let selectedTileEl: HTMLElement | null = null;
 
   for (const dirRect of dirLayout) {
     const dirBox = element("div", {
@@ -512,12 +488,6 @@ function renderOverviewMain(replay: Replay): HTMLElement {
             element("span", { text: `size: ${file.size}` }),
           ]),
         ],
-        () => {
-          if (selectedTileEl) selectedTileEl.classList.remove("selected");
-          tile.classList.add("selected");
-          selectedTileEl = tile;
-          updateHud(file);
-        },
       );
 
       tile.title = `${file.filePath}\n+${file.additions} / -${file.deletions} lines\nSize: max(${file.additions}, ${file.deletions}) = ${file.size}\nBalance: ${file.balanceTag}`;
@@ -598,13 +568,6 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         ]),
       ]),
       canvas,
-      element("div", { className: "treemap-hud" }, [
-        element("div", { className: "treemap-hud-left" }, [
-          element("span", { className: "treemap-hud-tag", text: "INSPECT FILE" }),
-          hudPath,
-          hudStats,
-        ]),
-      ]),
     ]),
   ]);
 }
