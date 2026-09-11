@@ -800,9 +800,9 @@ function renderOverviewMain(replay: Replay): HTMLElement {
     ];
 
     const effectiveTarget = targetNode ? compactToBranchingNode(targetNode) : null;
-    displayTitle = effectiveTarget?.fullPath ?? currentZoom;
+    displayTitle = currentZoom;
 
-    const parts = displayTitle.split("/");
+    const parts = currentZoom.split("/");
     let accum = "";
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]!;
@@ -837,13 +837,13 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       style: "left: 3px; top: 3px; width: calc(100% - 6px); height: calc(100% - 6px);",
     });
 
-    const dirHeader = element("div", { className: "treemap-dir-header", title: displayTitle }, [
-      element("span", { text: `📁 ${displayTitle}` }),
+    const dirHeader = element("div", { className: "treemap-dir-header", title: currentZoom }, [
+      element("span", { text: `📁 ${currentZoom}` }),
       element("span", { className: "dir-loc", text: `${zoomedWeight} LOC · Zoomed View` }),
     ]);
 
     const targetBranch: DirectoryBranch = {
-      dirPath: displayTitle,
+      dirPath: currentZoom,
       node: effectiveTarget ?? {
         name: currentZoom,
         fullPath: currentZoom,
