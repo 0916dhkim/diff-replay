@@ -309,6 +309,43 @@ pre {
   background: #1c2738;
 }
 
+.step-zero-row {
+  margin-bottom: 6px;
+}
+
+.zero-index {
+  border-radius: 6px !important;
+  color: var(--lime) !important;
+  border-color: #388bfd !important;
+  background: rgba(56, 139, 253, 0.1) !important;
+  font-size: 13px !important;
+  font-weight: 600;
+}
+
+.step-zero-row.active .zero-index {
+  color: #ffffff !important;
+  background: #1f6feb !important;
+}
+
+.step-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 6px;
+  font-family: "DM Mono", monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--faint);
+  letter-spacing: 0.12em;
+}
+
+.step-section-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--surface-soft);
+}
+
 .step-index {
   display: grid;
   width: 24px;
@@ -1056,4 +1093,258 @@ pre {
   .diff-split-wrapper {
     overflow-x: auto;
   }
+}
+
+/* STACK CHURN TREEMAP OVERVIEW */
+.overview-scroll {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 28px;
+  overflow-y: auto;
+}
+
+.treemap-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.treemap-hero h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.treemap-hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.treemap-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.treemap-stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 11px;
+}
+
+.treemap-stat-badge strong {
+  color: var(--text);
+}
+
+.spectrum-legend-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.spectrum-legend-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 11px;
+}
+
+.spectrum-legend-bar {
+  height: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    rgb(218, 54, 51) 0%,
+    rgba(140, 58, 65, 0.9) 25%,
+    rgb(55, 65, 81) 50%,
+    rgba(40, 115, 60, 0.9) 75%,
+    rgb(46, 160, 67) 100%
+  );
+}
+
+.spectrum-legend-ticks {
+  display: flex;
+  justify-content: space-between;
+  color: var(--faint);
+  font-family: "DM Mono", monospace;
+  font-size: 10px;
+}
+
+.treemap-canvas {
+  position: relative;
+  width: 100%;
+  min-height: 520px;
+  height: calc(100vh - 360px);
+  max-height: 720px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #090d13;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.treemap-dir-box {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 4px 4px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: rgba(22, 27, 34, 0.5);
+  overflow: hidden;
+}
+
+.treemap-dir-header {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  left: 8px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #79c0ff;
+  font-family: "DM Mono", monospace;
+  font-size: 10px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treemap-dir-header span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treemap-dir-header span.dir-loc {
+  margin-left: 8px;
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: normal;
+  flex-shrink: 0;
+}
+
+.treemap-dir-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.treemap-file-tile {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-family: "DM Mono", monospace;
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+  transition:
+    transform 120ms ease,
+    filter 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.treemap-file-tile:hover {
+  z-index: 10;
+  filter: brightness(1.25);
+  transform: scale(1.01);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.treemap-file-name {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.treemap-file-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.treemap-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: "DM Mono", monospace;
+  font-size: 11.5px;
+}
+
+.treemap-hud-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.treemap-hud-tag {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #ffffff;
+  background: #1f6feb;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.treemap-hud-path {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treemap-hud-stats {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
 }

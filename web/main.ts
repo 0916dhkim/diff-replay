@@ -12,18 +12,53 @@ let currentReplay: Replay | null = null;
 let eventSource: EventSource | null = null;
 let viewMode: "split" | "unified" = "split";
 let sidebarsHidden = false;
+let isOverviewActive = false;
 let routeGeneration = 0;
 let mutationQueue: Promise<unknown> = Promise.resolve();
 
 void route();
 
 window.addEventListener("popstate", () => void route());
+window.addEventListener("hashchange", () => {
+  if (currentReplay) {
+    const shouldBeOverview = window.location.hash === "#overview";
+    if (isOverviewActive !== shouldBeOverview) {
+      isOverviewActive = shouldBeOverview;
+      renderReplay(currentReplay);
+    }
+  }
+});
 window.addEventListener("keydown", (event) => {
   const target = event.target as HTMLElement | null;
   if (target?.matches("input, textarea")) return;
   if (event.code === "Space" && currentReplay) {
     event.preventDefault();
-    void approveAndAdvance();
+    if (isOverviewActive) {
+      isOverviewActive = false;
+      if (window.location.hash === "#overview") {
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+      renderReplay(currentReplay);
+    } else {
+      void approveAndAdvance();
+    }
+  }
+  if (
+    (event.key === "m" || event.key === "o") &&
+    !event.repeat &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    currentReplay
+  ) {
+    event.preventDefault();
+    isOverviewActive = !isOverviewActive;
+    if (isOverviewActive) {
+      window.location.hash = "overview";
+    } else if (window.location.hash === "#overview") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    renderReplay(currentReplay);
   }
   if (
     event.key === "z" &&
@@ -44,6 +79,7 @@ async function route(): Promise<void> {
   eventSource?.close();
   eventSource = null;
   currentReplay = null;
+  isOverviewActive = false;
   const match = window.location.pathname.match(/^\/replays\/([^/]+)$/);
   try {
     if (match?.[1]) await loadReplay(match[1], generation);
@@ -119,6 +155,7 @@ async function loadReplay(replayId: string, generation: number): Promise<void> {
   const { replay } = await api<{ replay: Replay }>(`/api/replays/${replayId}`);
   if (generation !== routeGeneration) return;
   currentReplay = replay;
+  isOverviewActive = window.location.hash === "#overview";
   renderReplay(replay);
   eventSource = new EventSource(`/api/replays/${replayId}/events`);
   eventSource.addEventListener("message", (event) => {
@@ -134,6 +171,468 @@ async function refreshReplay(replayId: string, generation: number): Promise<void
   renderReplay(replay);
 }
 
+interface FileChurnMetric {
+  filePath: string;
+  fileName: string;
+  dirPath: string;
+  additions: number;
+  deletions: number;
+  size: number;
+  ratio: number;
+  color: string;
+  borderColor: string;
+  balanceTag: string;
+}
+
+interface TreemapItem<T> {
+  id: string;
+  weight: number;
+  data: T;
+}
+
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+interface LayoutResult<T> extends Rect {
+  item: TreemapItem<T>;
+}
+
+function extractStepDelta(
+  diff: string,
+  lineCount?: number,
+): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  let hasDeltaLines = false;
+  const lines = diff.split(/\r?\n/);
+
+  for (const line of lines) {
+    if (line.startsWith("+++") || line.startsWith("---")) continue;
+    if (line.startsWith("@@") || line.startsWith("Index:") || line.startsWith("diff ")) continue;
+
+    if (line.startsWith("+")) {
+      additions++;
+      hasDeltaLines = true;
+    } else if (line.startsWith("-")) {
+      deletions++;
+      hasDeltaLines = true;
+    }
+  }
+
+  if (!hasDeltaLines) {
+    additions = lineCount ?? lines.filter((l) => l.trim().length > 0).length;
+    deletions = 0;
+  }
+
+  return { additions, deletions };
+}
+
+function computeMechanicalColors(
+  additions: number,
+  deletions: number,
+): {
+  color: string;
+  borderColor: string;
+  balanceTag: string;
+} {
+  const total = additions + deletions;
+  if (total === 0) {
+    return {
+      color: "rgba(55, 65, 81, 0.45)",
+      borderColor: "#4b5563",
+      balanceTag: "No changes",
+    };
+  }
+
+  const r = (additions - deletions) / total;
+
+  const gGray = 65;
+  const rGray = 55;
+  const bGray = 81;
+
+  if (r >= 0) {
+    const factor = r;
+    const redCh = Math.round(rGray * (1 - factor) + 25 * factor);
+    const greenCh = Math.round(gGray * (1 - factor) + 160 * factor);
+    const blueCh = Math.round(bGray * (1 - factor) + 54 * factor);
+    const alpha = 0.35 + 0.35 * factor;
+    const color = `rgba(${redCh}, ${greenCh}, ${blueCh}, ${alpha.toFixed(2)})`;
+
+    const borderR = Math.round(107 * (1 - factor) + 63 * factor);
+    const borderG = Math.round(114 * (1 - factor) + 185 * factor);
+    const borderB = Math.round(128 * (1 - factor) + 80 * factor);
+    const borderColor = `rgb(${borderR}, ${borderG}, ${borderB})`;
+
+    let balanceTag = `${Math.round((additions / total) * 100)}% Add / ${Math.round((deletions / total) * 100)}% Del`;
+    if (r === 1) balanceTag = "100% Additions (Bright Green)";
+    else if (r === 0) balanceTag = "50% Add / 50% Del (Neutral Gray)";
+
+    return { color, borderColor, balanceTag };
+  } else {
+    const factor = Math.abs(r);
+    const redCh = Math.round(rGray * (1 - factor) + 218 * factor);
+    const greenCh = Math.round(gGray * (1 - factor) + 40 * factor);
+    const blueCh = Math.round(bGray * (1 - factor) + 45 * factor);
+    const alpha = 0.35 + 0.35 * factor;
+    const color = `rgba(${redCh}, ${greenCh}, ${blueCh}, ${alpha.toFixed(2)})`;
+
+    const borderR = Math.round(107 * (1 - factor) + 248 * factor);
+    const borderG = Math.round(114 * (1 - factor) + 81 * factor);
+    const borderB = Math.round(128 * (1 - factor) + 73 * factor);
+    const borderColor = `rgb(${borderR}, ${borderG}, ${borderB})`;
+
+    const delPct = Math.round((deletions / total) * 100);
+    let balanceTag = `${100 - delPct}% Add / ${delPct}% Del`;
+    if (r === -1) balanceTag = "100% Deletions (Bright Red)";
+
+    return { color, borderColor, balanceTag };
+  }
+}
+
+function computeReplayMetrics(steps: AtomicStep[]): FileChurnMetric[] {
+  const map = new Map<string, { additions: number; deletions: number; fileName: string }>();
+
+  for (const step of steps) {
+    const delta = extractStepDelta(step.diff, step.lineCount);
+    const existing = map.get(step.filePath) ?? {
+      additions: 0,
+      deletions: 0,
+      fileName: step.fileName,
+    };
+    existing.additions += delta.additions;
+    existing.deletions += delta.deletions;
+    map.set(step.filePath, existing);
+  }
+
+  const result: FileChurnMetric[] = [];
+  for (const [filePath, data] of map.entries()) {
+    const size = Math.max(data.additions, data.deletions);
+    const total = data.additions + data.deletions;
+    const ratio = total === 0 ? 0 : (data.additions - data.deletions) / total;
+    const { color, borderColor, balanceTag } = computeMechanicalColors(
+      data.additions,
+      data.deletions,
+    );
+
+    const lastSlash = filePath.lastIndexOf("/");
+    const dirPath = lastSlash >= 0 ? filePath.slice(0, lastSlash) : "root";
+
+    result.push({
+      filePath,
+      fileName: data.fileName,
+      dirPath,
+      additions: data.additions,
+      deletions: data.deletions,
+      size,
+      ratio,
+      color,
+      borderColor,
+      balanceTag,
+    });
+  }
+
+  return result.sort((a, b) => b.size - a.size);
+}
+
+function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
+  if (items.length === 0) return [];
+  const totalWeight = items.reduce((sum, item) => sum + Math.max(1, item.weight), 0);
+  if (totalWeight <= 0) return [];
+
+  const sorted = [...items].sort((a, b) => Math.max(1, b.weight) - Math.max(1, a.weight));
+  const result: LayoutResult<T>[] = [];
+
+  let currentRect = { ...rect };
+  let currentRemaining = [...sorted];
+  let totalRemainingWeight = totalWeight;
+
+  while (currentRemaining.length > 0) {
+    const isVertical = currentRect.w < currentRect.h;
+    const side = isVertical ? currentRect.w : currentRect.h;
+
+    let row = [currentRemaining[0]!];
+    let rowWeight = Math.max(1, currentRemaining[0]!.weight);
+    let i = 1;
+
+    const worstAspect = (testRow: TreemapItem<T>[], testWeight: number): number => {
+      const rowThickness =
+        (testWeight / totalRemainingWeight) * (isVertical ? currentRect.h : currentRect.w);
+      if (rowThickness <= 0) return Infinity;
+      let maxAspect = 0;
+      for (const it of testRow) {
+        const itemLen = (Math.max(1, it.weight) / testWeight) * side;
+        if (itemLen <= 0) continue;
+        const aspect = Math.max(rowThickness / itemLen, itemLen / rowThickness);
+        if (aspect > maxAspect) maxAspect = aspect;
+      }
+      return maxAspect;
+    };
+
+    while (i < currentRemaining.length) {
+      const nextItem = currentRemaining[i]!;
+      const nextWeight = rowWeight + Math.max(1, nextItem.weight);
+      if (worstAspect([...row, nextItem], nextWeight) <= worstAspect(row, rowWeight)) {
+        row.push(nextItem);
+        rowWeight = nextWeight;
+        i++;
+      } else {
+        break;
+      }
+    }
+
+    const rowThickness =
+      (rowWeight / totalRemainingWeight) * (isVertical ? currentRect.h : currentRect.w);
+    let offset = 0;
+    for (const it of row) {
+      const itemLen = (Math.max(1, it.weight) / rowWeight) * side;
+      if (isVertical) {
+        result.push({
+          x: currentRect.x + offset,
+          y: currentRect.y,
+          w: itemLen,
+          h: rowThickness,
+          item: it,
+        });
+        offset += itemLen;
+      } else {
+        result.push({
+          x: currentRect.x,
+          y: currentRect.y + offset,
+          w: rowThickness,
+          h: itemLen,
+          item: it,
+        });
+        offset += itemLen;
+      }
+    }
+
+    if (isVertical) {
+      currentRect.y += rowThickness;
+      currentRect.h -= rowThickness;
+    } else {
+      currentRect.x += rowThickness;
+      currentRect.w -= rowThickness;
+    }
+
+    totalRemainingWeight -= rowWeight;
+    currentRemaining = currentRemaining.slice(row.length);
+  }
+
+  return result;
+}
+
+function renderOverviewMain(replay: Replay): HTMLElement {
+  const fileMetrics = computeReplayMetrics(replay.steps);
+  const totalMaxLoc = fileMetrics.reduce((sum, f) => sum + f.size, 0);
+  const totalAdditions = fileMetrics.reduce((sum, f) => sum + f.additions, 0);
+  const totalDeletions = fileMetrics.reduce((sum, f) => sum + f.deletions, 0);
+
+  const nextUnapproved =
+    replay.steps.find((s) => replay.state.stepStatus[s.stepId] !== "approved") ?? replay.steps[0]!;
+  const unapprovedIndex = replay.steps.indexOf(nextUnapproved);
+  const nextLabel =
+    unapprovedIndex >= 0 ? `Review step ${unapprovedIndex + 1} →` : "Review step 1 →";
+
+  const dirMap = new Map<string, FileChurnMetric[]>();
+  for (const file of fileMetrics) {
+    const list = dirMap.get(file.dirPath) ?? [];
+    list.push(file);
+    dirMap.set(file.dirPath, list);
+  }
+
+  const dirItems: TreemapItem<{ dirPath: string; files: FileChurnMetric[] }>[] = [];
+  for (const [dirPath, files] of dirMap.entries()) {
+    const dirWeight = files.reduce((sum, f) => sum + f.size, 0);
+    dirItems.push({ id: dirPath, weight: dirWeight, data: { dirPath, files } });
+  }
+
+  const dirLayout = squarify(dirItems, { x: 0, y: 0, w: 100, h: 100 });
+
+  const hudPath = element("span", {
+    className: "treemap-hud-path",
+    text: "Select a file to inspect",
+  });
+  const hudStats = element("span", {
+    className: "treemap-hud-stats",
+    text: `${fileMetrics.length} files · ${totalMaxLoc} max LOC`,
+  });
+  const hudButton = button("Review file step →", "button secondary");
+  hudButton.style.display = "none";
+
+  const updateHud = (file: FileChurnMetric): void => {
+    hudPath.textContent = file.filePath;
+    hudStats.replaceChildren(
+      element("span", {
+        style: "color: #7ee787; font-weight: 600;",
+        text: `+${file.additions}`,
+      }),
+      element("span", { style: "color: #ffa198; font-weight: 600;", text: `-${file.deletions}` }),
+      element("span", { text: `· size: ${file.size} · ${file.balanceTag}` }),
+    );
+    hudButton.style.display = "inline-flex";
+    hudButton.onclick = () => {
+      const step = replay.steps.find((s) => s.filePath === file.filePath);
+      if (step) {
+        isOverviewActive = false;
+        if (window.location.hash === "#overview") {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+        void selectStep(step.stepId);
+      }
+    };
+  };
+
+  if (fileMetrics[0]) updateHud(fileMetrics[0]);
+
+  const canvas = element("div", { className: "treemap-canvas" });
+
+  for (const dirRect of dirLayout) {
+    const dirBox = element("div", {
+      className: "treemap-dir-box",
+      style: `left: calc(${dirRect.x.toFixed(2)}% + 3px); top: calc(${dirRect.y.toFixed(2)}% + 3px); width: calc(${dirRect.w.toFixed(2)}% - 6px); height: calc(${dirRect.h.toFixed(2)}% - 6px);`,
+    });
+
+    const dirHeader = element(
+      "div",
+      { className: "treemap-dir-header", title: dirRect.item.data.dirPath },
+      [
+        element("span", { text: `📁 ${dirRect.item.data.dirPath}` }),
+        element("span", { className: "dir-loc", text: `${dirRect.item.weight} LOC` }),
+      ],
+    );
+
+    const dirContent = element("div", { className: "treemap-dir-content" });
+
+    const fileItems: TreemapItem<FileChurnMetric>[] = dirRect.item.data.files.map((f) => ({
+      id: f.filePath,
+      weight: f.size,
+      data: f,
+    }));
+
+    const fileLayout = squarify(fileItems, { x: 0, y: 0, w: 100, h: 100 });
+
+    for (const fileRect of fileLayout) {
+      const file = fileRect.item.data;
+      const tile = element(
+        "div",
+        {
+          className: "treemap-file-tile",
+          style: `left: calc(${fileRect.x.toFixed(2)}% + 2px); top: calc(${fileRect.y.toFixed(2)}% + 2px); width: calc(${fileRect.w.toFixed(2)}% - 4px); height: calc(${fileRect.h.toFixed(2)}% - 4px); background: ${file.color}; border: 1px solid ${file.borderColor};`,
+        },
+        [
+          element("div", { className: "treemap-file-name", text: file.fileName }),
+          element("div", { className: "treemap-file-meta" }, [
+            element("span", { text: `+${file.additions} / -${file.deletions}` }),
+            element("span", { text: `size: ${file.size}` }),
+          ]),
+        ],
+        () => {
+          const step = replay.steps.find((s) => s.filePath === file.filePath);
+          if (step) {
+            isOverviewActive = false;
+            if (window.location.hash === "#overview") {
+              window.history.replaceState({}, "", window.location.pathname);
+            }
+            void selectStep(step.stepId);
+          }
+        },
+      );
+
+      tile.title = `${file.filePath}\n+${file.additions} / -${file.deletions} lines\nSize: max(${file.additions}, ${file.deletions}) = ${file.size}\nBalance: ${file.balanceTag}`;
+      tile.addEventListener("mouseenter", () => updateHud(file));
+      dirContent.append(tile);
+    }
+
+    dirBox.append(dirHeader, dirContent);
+    canvas.append(dirBox);
+  }
+
+  return element("main", { className: "review-main" }, [
+    element("header", { className: "review-header" }, [
+      element("div", { className: "review-heading" }, [
+        element("button", { className: "back-button", text: "Diff Replay" }, [], () =>
+          navigate("/"),
+        ),
+        element("span", { className: "header-divider", text: "/" }),
+        element("strong", { text: replay.title }),
+        element("span", { className: "header-divider", text: "/" }),
+        element("span", { style: "color: var(--lime); font-weight: 600;", text: "Stack Overview" }),
+      ]),
+      element("div", { className: "header-actions" }, [
+        button(nextLabel, "button primary", () => {
+          isOverviewActive = false;
+          if (window.location.hash === "#overview") {
+            window.history.replaceState({}, "", window.location.pathname);
+          }
+          void selectStep(nextUnapproved.stepId);
+        }),
+      ]),
+    ]),
+    element("div", { className: "overview-scroll" }, [
+      element("section", { className: "treemap-hero" }, [
+        element("p", { className: "eyebrow", text: "STACK CHURN HEATMAP · MECHANICAL FOOTPRINT" }),
+        element("h1", { text: "Stack Overview" }),
+        element("p", {
+          text:
+            replay.description ??
+            "Mechanical diff footprint across touched files in this replay stack.",
+        }),
+        element("div", { className: "treemap-stats-row" }, [
+          element("span", { className: "treemap-stat-badge" }, [
+            element("span", { text: "Files:" }),
+            element("strong", { text: String(fileMetrics.length) }),
+          ]),
+          element("span", { className: "treemap-stat-badge" }, [
+            element("span", { text: "Max Churn LOC:" }),
+            element("strong", { text: `${totalMaxLoc} lines` }),
+          ]),
+          element("span", { className: "treemap-stat-badge" }, [
+            element("span", { text: "Total Additions:" }),
+            element("strong", { style: "color: #7ee787;", text: `+${totalAdditions}` }),
+          ]),
+          element("span", { className: "treemap-stat-badge" }, [
+            element("span", { text: "Total Deletions:" }),
+            element("strong", { style: "color: #ffa198;", text: `-${totalDeletions}` }),
+          ]),
+        ]),
+      ]),
+      element("section", { className: "spectrum-legend-card" }, [
+        element("div", { className: "spectrum-legend-top" }, [
+          element("span", {
+            text: "MECHANICAL RATIO: r = (Additions - Deletions) / (Additions + Deletions)",
+          }),
+          element("span", { text: "Size: max(Additions, Deletions)" }),
+        ]),
+        element("div", { className: "spectrum-legend-bar" }),
+        element("div", { className: "spectrum-legend-ticks" }, [
+          element("span", { style: "color: #ffa198;", text: "-1.0 (100% Deletion · Bright Red)" }),
+          element("span", {
+            style: "color: #e5e7eb; font-weight: 600;",
+            text: "0.0 (50% Add / 50% Del · Neutral Gray)",
+          }),
+          element("span", {
+            style: "color: #7ee787;",
+            text: "+1.0 (100% Addition · Bright Green)",
+          }),
+        ]),
+      ]),
+      canvas,
+      element("div", { className: "treemap-hud" }, [
+        element("div", { className: "treemap-hud-left" }, [
+          element("span", { className: "treemap-hud-tag", text: "SELECTED FILE" }),
+          hudPath,
+          hudStats,
+        ]),
+        hudButton,
+      ]),
+    ]),
+  ]);
+}
+
 function renderReplay(replay: Replay): void {
   const activeStep =
     replay.steps.find((step) => step.stepId === replay.state.activeStepId) ?? replay.steps[0]!;
@@ -145,46 +644,117 @@ function renderReplay(replay: Replay): void {
   app.replaceChildren(
     element("div", { className: `workspace${sidebarsHidden ? " sidebars-hidden" : ""}` }, [
       renderStepRail(replay, activeStep, approved),
-      element("main", { className: "review-main" }, [
-        element("header", { className: "review-header" }, [
-          element("div", { className: "review-heading" }, [
-            element("button", { className: "back-button", text: "Diff Replay" }, [], () =>
-              navigate("/"),
-            ),
-            element("span", { className: "header-divider", text: "/" }),
-            element("strong", { text: replay.title }),
-          ]),
-          element("div", { className: "header-actions" }, [
-            segmentedControl(),
-            button("Approve & next", "button primary", () => void approveAndAdvance()),
-          ]),
-        ]),
-        element("div", { className: "review-scroll" }, [
-          element("section", { className: "step-intro" }, [
-            element("div", { className: "step-kicker" }, [
-              element("span", { text: `STEP ${activeStep.stepId}` }),
-              typeBadge(activeStep),
-              element("span", {
-                className: `risk risk-${riskClass(activeStep.risk)}`,
-                text: `${activeStep.risk} risk`,
-              }),
+      isOverviewActive
+        ? renderOverviewMain(replay)
+        : element("main", { className: "review-main" }, [
+            element("header", { className: "review-header" }, [
+              element("div", { className: "review-heading" }, [
+                element("button", { className: "back-button", text: "Diff Replay" }, [], () =>
+                  navigate("/"),
+                ),
+                element("span", { className: "header-divider", text: "/" }),
+                element("strong", { text: replay.title }),
+              ]),
+              element("div", { className: "header-actions" }, [
+                segmentedControl(),
+                button("Approve & next", "button primary", () => void approveAndAdvance()),
+              ]),
             ]),
-            element("h1", { text: activeStep.action }),
-            element("p", { text: activeStep.takeaway }),
-            element("div", { className: "step-meta" }, [
-              element("code", { text: activeStep.filePath }),
-              element("span", { text: `${activeIndex + 1} of ${replay.steps.length}` }),
+            element("div", { className: "review-scroll" }, [
+              element("section", { className: "step-intro" }, [
+                element("div", { className: "step-kicker" }, [
+                  element("span", { text: `STEP ${activeStep.stepId}` }),
+                  typeBadge(activeStep),
+                  element("span", {
+                    className: `risk risk-${riskClass(activeStep.risk)}`,
+                    text: `${activeStep.risk} risk`,
+                  }),
+                ]),
+                element("h1", { text: activeStep.action }),
+                element("p", { text: activeStep.takeaway }),
+                element("div", { className: "step-meta" }, [
+                  element("code", { text: activeStep.filePath }),
+                  element("span", { text: `${activeIndex + 1} of ${replay.steps.length}` }),
+                ]),
+              ]),
+              renderDiff(activeStep),
             ]),
           ]),
-          renderDiff(activeStep),
-        ]),
-      ]),
       renderNotes(replay, activeStep),
     ]),
   );
 }
 
 function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number): HTMLElement {
+  const fileMetrics = computeReplayMetrics(replay.steps);
+  const totalMaxLoc = fileMetrics.reduce((sum, f) => sum + f.size, 0);
+
+  const rootRow = element(
+    "button",
+    {
+      className: `step-row step-zero-row ${isOverviewActive ? "active" : ""}`,
+    },
+    [
+      element("span", { className: "step-index zero-index", text: "⊞" }),
+      element("span", { className: "step-copy" }, [
+        element("strong", { text: "Stack Overview" }),
+        element("small", { text: `${fileMetrics.length} files · ${totalMaxLoc} LOC max` }),
+      ]),
+    ],
+    () => {
+      isOverviewActive = true;
+      window.location.hash = "overview";
+      renderReplay(replay);
+    },
+  );
+
+  const divider = element("div", { className: "step-section-divider" }, [
+    element("span", { text: `STEPS (${replay.steps.length})` }),
+  ]);
+
+  const stepRows = replay.steps.map((step, index) => {
+    const status = replay.state.stepStatus[step.stepId];
+    const badge = element("span", {
+      className: "step-index",
+      text: status === "approved" ? "✓" : status === "flagged" ? "!" : String(index + 1),
+    });
+    if (status === "approved") {
+      badge.title = "Unapprove";
+      badge.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void setStatus(step.stepId, null);
+      });
+    }
+    return element(
+      "button",
+      {
+        className: `step-row ${step.stepId === activeStep.stepId && !isOverviewActive ? "active" : ""} ${status ?? ""}`,
+      },
+      [
+        badge,
+        element("span", { className: "step-copy" }, [
+          element("strong", { text: step.action }),
+          ...(step.isCodegen || step.isTest
+            ? [
+                element("span", { className: "step-copy-meta" }, [
+                  typeBadge(step),
+                  element("small", { text: step.stepId }),
+                ]),
+              ]
+            : [element("small", { text: step.stepId })]),
+        ]),
+      ],
+      () => {
+        isOverviewActive = false;
+        if (window.location.hash === "#overview") {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+        void selectStep(step.stepId);
+      },
+    );
+  });
+
   return element("aside", { className: "step-rail" }, [
     element("div", { className: "rail-header" }, [
       element("p", { className: "eyebrow", text: replay.repository ?? "REPLAY" }),
@@ -196,46 +766,11 @@ function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number
         ]),
       ]),
     ]),
-    element(
-      "nav",
-      { className: "step-list", ariaLabel: "Replay steps" },
-      replay.steps.map((step, index) => {
-        const status = replay.state.stepStatus[step.stepId];
-        const badge = element("span", {
-          className: "step-index",
-          text: status === "approved" ? "✓" : status === "flagged" ? "!" : String(index + 1),
-        });
-        if (status === "approved") {
-          badge.title = "Unapprove";
-          badge.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            void setStatus(step.stepId, null);
-          });
-        }
-        return element(
-          "button",
-          {
-            className: `step-row ${step.stepId === activeStep.stepId ? "active" : ""} ${status ?? ""}`,
-          },
-          [
-            badge,
-            element("span", { className: "step-copy" }, [
-              element("strong", { text: step.action }),
-              ...(step.isCodegen || step.isTest
-                ? [
-                    element("span", { className: "step-copy-meta" }, [
-                      typeBadge(step),
-                      element("small", { text: step.stepId }),
-                    ]),
-                  ]
-                : [element("small", { text: step.stepId })]),
-            ]),
-          ],
-          () => void selectStep(step.stepId),
-        );
-      }),
-    ),
+    element("nav", { className: "step-list", ariaLabel: "Replay steps" }, [
+      rootRow,
+      divider,
+      ...stepRows,
+    ]),
   ]);
 }
 
@@ -243,7 +778,9 @@ function renderNotes(replay: Replay, activeStep: AtomicStep): HTMLElement {
   const form = element("form", { className: "note-form" }, [
     element("textarea", {
       name: "note",
-      placeholder: `Leave a note on step ${activeStep.stepId}...`,
+      placeholder: isOverviewActive
+        ? "Leave a general note on this replay..."
+        : `Leave a note on step ${activeStep.stepId}...`,
       rows: "3",
     }),
     button("Add note", "button secondary", undefined, "submit"),
@@ -252,7 +789,7 @@ function renderNotes(replay: Replay, activeStep: AtomicStep): HTMLElement {
     event.preventDefault();
     const textarea = form.querySelector<HTMLTextAreaElement>("textarea")!;
     const text = textarea.value.trim();
-    if (text) void addNote(text, activeStep.stepId);
+    if (text) void addNote(text, isOverviewActive ? undefined : activeStep.stepId);
   });
   return element("aside", { className: "notes-panel" }, [
     element("header", {}, [
@@ -299,6 +836,7 @@ function renderNote(note: ReviewNote, replay: Replay, activeStep: AtomicStep): H
     ],
     hasStep && note.stepId
       ? () => {
+          isOverviewActive = false;
           void selectStep(note.stepId!);
         }
       : undefined,
@@ -310,6 +848,7 @@ function renderNote(note: ReviewNote, replay: Replay, activeStep: AtomicStep): H
     card.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
+        isOverviewActive = false;
         void selectStep(note.stepId!);
       }
     });
@@ -383,7 +922,7 @@ async function approveAndAdvance(): Promise<void> {
   if (next && next.stepId !== step.stepId) await selectStep(next.stepId);
 }
 
-async function addNote(text: string, stepId: string): Promise<void> {
+async function addNote(text: string, stepId?: string): Promise<void> {
   const replayId = currentReplay?.id;
   if (!replayId) return;
   await mutateReplay(replayId, `/api/replays/${replayId}/notes`, {
