@@ -89,32 +89,35 @@ if (typeof window !== "undefined" && "PerformanceObserver" in window) {
             currentRect: DOMRectReadOnly;
           }>;
         };
-        console.warn("[DEBUG][LayoutShift PerformanceEntry]", {
-          value: Number(shift.value.toFixed(5)),
-          hadRecentInput: shift.hadRecentInput,
-          sources: shift.sources?.map((s) => ({
-            node:
-              s.node instanceof HTMLElement
-                ? `${s.node.tagName.toLowerCase()}.${s.node.className}`
-                : String(s.node),
-            previousRect: s.previousRect
-              ? {
-                  x: Math.round(s.previousRect.x * 10) / 10,
-                  y: Math.round(s.previousRect.y * 10) / 10,
-                  w: Math.round(s.previousRect.width * 10) / 10,
-                  h: Math.round(s.previousRect.height * 10) / 10,
-                }
-              : null,
-            currentRect: s.currentRect
-              ? {
-                  x: Math.round(s.currentRect.x * 10) / 10,
-                  y: Math.round(s.currentRect.y * 10) / 10,
-                  w: Math.round(s.currentRect.width * 10) / 10,
-                  h: Math.round(s.currentRect.height * 10) / 10,
-                }
-              : null,
-          })),
-        });
+        console.warn(
+          "[DEBUG][LayoutShift PerformanceEntry]",
+          JSON.stringify({
+            value: Number(shift.value.toFixed(5)),
+            hadRecentInput: shift.hadRecentInput,
+            sources: shift.sources?.map((s) => ({
+              node:
+                s.node instanceof HTMLElement
+                  ? `${s.node.tagName.toLowerCase()}.${s.node.className}`
+                  : String(s.node),
+              previousRect: s.previousRect
+                ? {
+                    x: Math.round(s.previousRect.x * 10) / 10,
+                    y: Math.round(s.previousRect.y * 10) / 10,
+                    w: Math.round(s.previousRect.width * 10) / 10,
+                    h: Math.round(s.previousRect.height * 10) / 10,
+                  }
+                : null,
+              currentRect: s.currentRect
+                ? {
+                    x: Math.round(s.currentRect.x * 10) / 10,
+                    y: Math.round(s.currentRect.y * 10) / 10,
+                    w: Math.round(s.currentRect.width * 10) / 10,
+                    h: Math.round(s.currentRect.height * 10) / 10,
+                  }
+                : null,
+            })),
+          }),
+        );
       }
     });
     observer.observe({ type: "layout-shift", buffered: true });
@@ -830,12 +833,22 @@ function renderReplay(replay: Replay, reason = "render"): void {
   const t0 = performance.now();
   const preSnapshot = captureLayoutSnapshot();
 
-  console.log(`[DEBUG][renderReplay #${renderId}] START (reason: ${reason})`, {
-    isOverviewActive,
-    zoomedDirPath,
-    hash: window.location.hash,
-    preSnapshot,
-  });
+  const callerLine =
+    new Error().stack
+      ?.split("\n")
+      .slice(2, 4)
+      .map((l) => l.trim())
+      .join(" -> ") ?? "";
+
+  console.log(
+    `[DEBUG][renderReplay #${renderId}] START (reason: ${reason}) from ${callerLine}`,
+    JSON.stringify({
+      isOverviewActive,
+      zoomedDirPath,
+      hash: window.location.hash,
+      preSnapshot,
+    }),
+  );
 
   const activeStep =
     replay.steps.find((step) => step.stepId === replay.state.activeStepId) ?? replay.steps[0]!;
@@ -890,17 +903,19 @@ function renderReplay(replay: Replay, reason = "render"): void {
   const tSync = performance.now();
   const postSyncSnapshot = captureLayoutSnapshot();
   const syncDiff = diffSnapshots(preSnapshot, postSyncSnapshot);
-  console.log(`[DEBUG][renderReplay #${renderId}] DOM REPLACED (${(tSync - t0).toFixed(2)}ms)`, {
-    syncDiff: Object.keys(syncDiff).length ? syncDiff : "NO SYNC RECT SHIFT",
-  });
+  console.log(
+    `[DEBUG][renderReplay #${renderId}] DOM REPLACED (${(tSync - t0).toFixed(2)}ms) SYNC_DIFF:`,
+    JSON.stringify(syncDiff),
+  );
 
   requestAnimationFrame(() => {
     const tRaf = performance.now();
     const rafSnapshot = captureLayoutSnapshot();
     const rafDiff = diffSnapshots(postSyncSnapshot, rafSnapshot);
-    console.log(`[DEBUG][renderReplay #${renderId}] rAF FRAME (${(tRaf - t0).toFixed(2)}ms)`, {
-      rafDiff: Object.keys(rafDiff).length ? rafDiff : "NO RAF RECT SHIFT",
-    });
+    console.log(
+      `[DEBUG][renderReplay #${renderId}] rAF FRAME (${(tRaf - t0).toFixed(2)}ms) RAF_DIFF:`,
+      JSON.stringify(rafDiff),
+    );
   });
 }
 
