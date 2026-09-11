@@ -484,7 +484,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         element("span", { className: "breadcrumb-sep", text: "/" }),
         element("span", { className: "breadcrumb-active", text: currentZoom }),
       ]),
-      button("← Back to all folders (Esc)", "button secondary", () => {
+      button("← Back to all folders (Esc)", "breadcrumb-back-btn", () => {
         zoomedDirPath = null;
         window.location.hash = "overview";
         renderReplay(replay);
@@ -654,21 +654,20 @@ function renderOverviewMain(replay: Replay): HTMLElement {
     element("div", { className: "overview-scroll" }, [
       element("section", { className: "treemap-hero" }, [
         element("p", { className: "eyebrow", text: "STACK CHURN HEATMAP · MECHANICAL FOOTPRINT" }),
-        element("h1", { text: zoomedDirPath ? `Folder: ${zoomedDirPath}` : "Stack Overview" }),
+        element("h1", { text: "Stack Overview" }),
         element("p", {
           text:
             zoomedDirPath !== null
-              ? `Showing only files inside ${zoomedDirPath}.`
-              : (replay.description ??
-                "Mechanical diff footprint across touched files in this replay stack."),
+              ? `Zoomed into folder: ${zoomedDirPath}`
+              : "Mechanical diff footprint across touched files in this replay stack.",
         }),
         element("div", { className: "treemap-stats-row" }, [
           element("span", { className: "treemap-stat-badge" }, [
-            element("span", { text: zoomedDirPath ? "Folder Files:" : "Files:" }),
+            element("span", { text: "Files:" }),
             element("strong", { text: String(activeFiles.length) }),
           ]),
           element("span", { className: "treemap-stat-badge" }, [
-            element("span", { text: zoomedDirPath ? "Folder Churn:" : "Max Churn LOC:" }),
+            element("span", { text: "Max Churn LOC:" }),
             element("strong", { text: `${activeWeight} lines` }),
           ]),
           element("span", { className: "treemap-stat-badge" }, [
