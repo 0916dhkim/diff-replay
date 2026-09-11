@@ -79,9 +79,9 @@ export default function StepRail(props: StepRailProps) {
               >
                 <path d="M1.5 2.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .53 1.28L9.5 7.81v5.44a.75.75 0 0 1-1.13.65l-2-1.15A.75.75 0 0 1 6 12.1V7.81L1.72 3.03a.75.75 0 0 1-.22-.53Z" />
               </svg>
-              <strong class="filter-filename" title={props.selectedFile!}>
+              <span class="filter-filename" title={props.selectedFile!}>
                 {props.selectedFile!.split("/").pop()}
-              </strong>
+              </span>
             </div>
             <button
               class="filter-clear-btn"
@@ -91,8 +91,8 @@ export default function StepRail(props: StepRailProps) {
               title="Clear file filter (Esc)"
             >
               <svg
-                width="12"
-                height="12"
+                width="10"
+                height="10"
                 viewBox="0 0 16 16"
                 fill="currentColor"
                 aria-hidden="true"
