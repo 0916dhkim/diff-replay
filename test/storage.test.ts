@@ -35,6 +35,18 @@ describe("ReplayStore", () => {
     expect(await store.list()).toHaveLength(2);
   });
 
+  it("adds, updates, and deletes notes in storage", async () => {
+    const replay = await store.sync(makeReplay("repo#notes-crud"));
+    const withNote = await store.addNote(replay.id, "Initial feedback", "1.1");
+    const noteId = withNote.state.notes[0]!.id;
+
+    const updated = await store.updateNote(replay.id, noteId, "Edited feedback");
+    expect(updated.state.notes[0]!.text).toBe("Edited feedback");
+
+    const deleted = await store.deleteNote(replay.id, noteId);
+    expect(deleted.state.notes).toHaveLength(0);
+  });
+
   it("upserts a source key and preserves only unchanged step decisions", async () => {
     const input = makeReplay("repo#101");
     input.steps.push(makeStep("1.2", "+const second = true;"));

@@ -308,6 +308,15 @@ export function App() {
     });
   };
 
+  const updateNote = async (noteId: string, text: string): Promise<void> => {
+    const replayId = currentReplay()?.id;
+    if (!replayId) return;
+    await mutateReplay(replayId, `/api/replays/${replayId}/notes/${encodeURIComponent(noteId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ text }),
+    });
+  };
+
   createEffect(
     () => currentReplay()?.title,
     (title) => {
@@ -453,9 +462,11 @@ export function App() {
           </main>
           <ReviewNotes
             notes={currentReplay()!.state.notes}
+            steps={currentReplay()!.steps}
             activeStepId={activeStepId()}
             isOverview={isOverview()}
             onAddNote={(text, stepId) => void addNote(text, stepId)}
+            onUpdateNote={(id, text) => void updateNote(id, text)}
             onDeleteNote={(id) => void deleteNote(id)}
             onSelectStep={selectReviewStep}
           />

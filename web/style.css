@@ -876,66 +876,186 @@ pre {
 }
 
 .note {
-  padding: 12px;
+  position: relative;
+  background: #11161d;
   border: 1px solid var(--border);
-  border-radius: 9px;
-  background: #0d1117;
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  padding: 9px 11px;
+  transition: all 120ms ease;
 }
 
 .note.is-clickable {
   cursor: pointer;
-  transition:
-    border-color 140ms ease,
-    background-color 140ms ease;
-}
-
-.note.is-clickable:hover {
-  border-color: var(--border-bright);
-  background: #161b22;
-}
-
-.note.is-clickable:focus-visible {
-  outline: none;
-  border-color: #388bfd;
-  box-shadow: 0 0 0 2px rgba(56, 139, 253, 0.3);
 }
 
 .note.active {
   border-color: #388bfd;
-  background: #1c2738;
+  border-left-color: #58a6ff;
+  background: #141e2b;
 }
 
-.note.active:hover {
+.note.editing {
   border-color: #58a6ff;
-  background: #1f2c40;
+  border-left-color: #58a6ff;
+  background: #111924;
+  box-shadow: 0 0 14px rgba(56, 139, 253, 0.25);
 }
 
-.note-topline {
-  color: var(--lime);
+.step-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(56, 139, 253, 0.12);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  color: #a5d6ff;
   font-family: "DM Mono", monospace;
-  font-size: 10px;
+  font-size: 9.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all 120ms ease;
 }
 
-.note-delete {
-  color: var(--faint);
-  font-size: 10px;
+.step-pill:hover {
+  background: rgba(56, 139, 253, 0.22);
+  border-color: #58a6ff;
+  color: #ffffff;
 }
 
-.note-delete:hover {
-  color: var(--red);
-}
-
-.note p {
-  margin: 10px 0;
+.step-pill.general {
+  background: rgba(139, 148, 158, 0.12);
+  border-color: rgba(139, 148, 158, 0.25);
   color: #c9d1d9;
-  font-size: 13px;
-  line-height: 1.55;
+}
+
+.step-pill-tag {
+  color: var(--blue);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.step-pill-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.note-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
   white-space: pre-wrap;
 }
 
-.note time {
+.shelf-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(240, 246, 252, 0.06);
+}
+
+.time-stamp {
+  font-family: "DM Mono", monospace;
+  font-size: 9.5px;
   color: var(--faint);
+}
+
+.shelf-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: "DM Mono", monospace;
   font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 100ms ease;
+}
+
+.action-btn:hover {
+  color: var(--text);
+}
+
+.action-btn.danger:hover {
+  color: var(--red);
+}
+
+.action-sep {
+  color: var(--surface-soft);
+  font-size: 10px;
+}
+
+.inline-editor {
+  width: 100%;
+  box-sizing: border-box;
+  background: #090d13;
+  border: 1px solid #388bfd;
+  border-radius: 5px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 7px 9px;
+  resize: vertical;
+  outline: none;
+  line-height: 1.4;
+}
+
+.inline-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.btn-save {
+  background: #1f6feb;
+  border: none;
+  border-radius: 4px;
+  color: #ffffff;
+  font-family: "DM Mono", monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.btn-save:hover {
+  background: #388bfd;
+}
+
+.btn-cancel {
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  border-radius: 4px;
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+
+.btn-cancel:hover {
+  background: var(--surface-raised);
+  color: var(--text);
 }
 
 .notes-empty {

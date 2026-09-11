@@ -10,6 +10,7 @@ import {
   replayInputSchema,
   setActiveStepSchema,
   setStepStatusSchema,
+  updateNoteSchema,
 } from "./contracts.js";
 import { InvalidReplayMutationError, ReplayNotFoundError, ReplayStore } from "./storage.js";
 
@@ -125,6 +126,20 @@ export async function createApp(options: CreateAppOptions): Promise<FastifyInsta
       const replay = await options.store.addNote(request.params.replayId, note.text, note.stepId);
       publish(replay.id);
       return reply.status(201).send({ replay });
+    },
+  );
+
+  app.patch<{ Params: { replayId: string; noteId: string } }>(
+    "/api/replays/:replayId/notes/:noteId",
+    async (request) => {
+      const { text } = parseRequest(updateNoteSchema, request.body);
+      const replay = await options.store.updateNote(
+        request.params.replayId,
+        request.params.noteId,
+        text,
+      );
+      publish(replay.id);
+      return { replay };
     },
   );
 

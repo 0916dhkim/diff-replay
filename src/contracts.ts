@@ -91,6 +91,10 @@ export const addNoteSchema = z.object({
   stepId: z.string().min(1).optional(),
 });
 
+export const updateNoteSchema = z.object({
+  text: z.string().trim().min(1).max(20_000),
+});
+
 export type AtomicStep = z.infer<typeof atomicStepSchema>;
 export type AtomicStepInput = z.infer<typeof atomicStepInputSchema>;
 export type ReplayInput = z.infer<typeof replayInputSchema>;

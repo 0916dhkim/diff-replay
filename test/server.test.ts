@@ -69,12 +69,21 @@ describe("replay API", () => {
       payload: { text: "looks wrong", stepId: "1.1" },
     });
     const noteId = added.json<{ replay: Replay }>().replay.state.notes[0]!.id;
+    const updated = await app.inject({
+      method: "PATCH",
+      url: `/api/replays/${replay.id}/notes/${noteId}`,
+      payload: { text: "corrected feedback" },
+    });
     const deleted = await app.inject({
       method: "DELETE",
       url: `/api/replays/${replay.id}/notes/${noteId}`,
     });
 
     expect(added.statusCode).toBe(201);
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json<{ replay: Replay }>().replay.state.notes[0]!.text).toBe(
+      "corrected feedback",
+    );
     expect(deleted.statusCode).toBe(200);
     expect(deleted.json<{ replay: Replay }>().replay.state.notes).toEqual([]);
   });

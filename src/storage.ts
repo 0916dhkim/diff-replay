@@ -140,6 +140,16 @@ export class ReplayStore {
     });
   }
 
+  async updateNote(id: string, noteId: string, text: string): Promise<Replay> {
+    return this.mutateState(id, (replay) => {
+      const note = replay.state.notes.find((n) => n.id === noteId);
+      if (!note) {
+        throw new InvalidReplayMutationError(`Note ${noteId} does not exist`);
+      }
+      note.text = text;
+    });
+  }
+
   async deleteNote(id: string, noteId: string): Promise<Replay> {
     return this.mutateState(id, (replay) => {
       replay.state.notes = replay.state.notes.filter((note) => note.id !== noteId);
