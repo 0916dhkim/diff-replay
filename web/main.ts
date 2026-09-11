@@ -13,6 +13,7 @@ let eventSource: EventSource | null = null;
 let viewMode: "split" | "unified" = "split";
 let sidebarsHidden = false;
 let isOverviewActive = false;
+let zoomedDirPath: string | null = null;
 let routeGeneration = 0;
 let mutationQueue: Promise<unknown> = Promise.resolve();
 
@@ -31,10 +32,26 @@ window.addEventListener("hashchange", () => {
 window.addEventListener("keydown", (event) => {
   const target = event.target as HTMLElement | null;
   if (target?.matches("input, textarea")) return;
+  if (event.key === "Escape" && currentReplay && isOverviewActive) {
+    if (zoomedDirPath !== null) {
+      event.preventDefault();
+      zoomedDirPath = null;
+      renderReplay(currentReplay);
+    } else {
+      event.preventDefault();
+      isOverviewActive = false;
+      if (window.location.hash === "#overview") {
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+      renderReplay(currentReplay);
+    }
+    return;
+  }
   if (event.code === "Space" && currentReplay) {
     event.preventDefault();
     if (isOverviewActive) {
       isOverviewActive = false;
+      zoomedDirPath = null;
       if (window.location.hash === "#overview") {
         window.history.replaceState({}, "", window.location.pathname);
       }
@@ -53,6 +70,7 @@ window.addEventListener("keydown", (event) => {
   ) {
     event.preventDefault();
     isOverviewActive = !isOverviewActive;
+    zoomedDirPath = null;
     if (isOverviewActive) {
       window.location.hash = "overview";
     } else if (window.location.hash === "#overview") {
@@ -80,6 +98,7 @@ async function route(): Promise<void> {
   eventSource = null;
   currentReplay = null;
   isOverviewActive = false;
+  zoomedDirPath = null;
   const match = window.location.pathname.match(/^\/replays\/([^/]+)$/);
   try {
     if (match?.[1]) await loadReplay(match[1], generation);
@@ -431,41 +450,42 @@ function renderOverviewMain(replay: Replay): HTMLElement {
   const totalAdditions = fileMetrics.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = fileMetrics.reduce((sum, f) => sum + f.deletions, 0);
 
-  const dirMap = new Map<string, FileChurnMetric[]>();
-  for (const file of fileMetrics) {
-    const list = dirMap.get(file.dirPath) ?? [];
-    list.push(file);
-    dirMap.set(file.dirPath, list);
-  }
-
-  const dirItems: TreemapItem<{ dirPath: string; files: FileChurnMetric[] }>[] = [];
-  for (const [dirPath, files] of dirMap.entries()) {
-    const dirWeight = files.reduce((sum, f) => sum + f.size, 0);
-    dirItems.push({ id: dirPath, weight: dirWeight, data: { dirPath, files } });
-  }
-
-  const dirLayout = squarify(dirItems, { x: 0, y: 0, w: 100, h: 100 });
-
   const canvas = element("div", { className: "treemap-canvas" });
+  let breadcrumbBar: HTMLElement;
 
-  for (const dirRect of dirLayout) {
+  if (zoomedDirPath !== null) {
+    const currentZoom = zoomedDirPath;
+    const zoomedFiles = fileMetrics.filter((f) => f.dirPath === currentZoom);
+    const zoomedWeight = zoomedFiles.reduce((sum, f) => sum + f.size, 0);
+
+    breadcrumbBar = element("nav", { className: "treemap-breadcrumb-bar" }, [
+      element("div", { className: "breadcrumb-path" }, [
+        element("button", { className: "breadcrumb-btn", text: "📁 All Folders" }, [], () => {
+          zoomedDirPath = null;
+          renderReplay(replay);
+        }),
+        element("span", { className: "breadcrumb-sep", text: "/" }),
+        element("span", { className: "breadcrumb-active", text: currentZoom }),
+      ]),
+      button("← Back to all folders (Esc)", "button secondary", () => {
+        zoomedDirPath = null;
+        renderReplay(replay);
+      }),
+    ]);
+
     const dirBox = element("div", {
       className: "treemap-dir-box",
-      style: `left: calc(${dirRect.x.toFixed(2)}% + 3px); top: calc(${dirRect.y.toFixed(2)}% + 3px); width: calc(${dirRect.w.toFixed(2)}% - 6px); height: calc(${dirRect.h.toFixed(2)}% - 6px);`,
+      style: "left: 3px; top: 3px; width: calc(100% - 6px); height: calc(100% - 6px);",
     });
 
-    const dirHeader = element(
-      "div",
-      { className: "treemap-dir-header", title: dirRect.item.data.dirPath },
-      [
-        element("span", { text: `📁 ${dirRect.item.data.dirPath}` }),
-        element("span", { className: "dir-loc", text: `${dirRect.item.weight} LOC` }),
-      ],
-    );
+    const dirHeader = element("div", { className: "treemap-dir-header", title: currentZoom }, [
+      element("span", { text: `📁 ${currentZoom}` }),
+      element("span", { className: "dir-loc", text: `${zoomedWeight} LOC · Zoomed View` }),
+    ]);
 
     const dirContent = element("div", { className: "treemap-dir-content" });
 
-    const fileItems: TreemapItem<FileChurnMetric>[] = dirRect.item.data.files.map((f) => ({
+    const fileItems: TreemapItem<FileChurnMetric>[] = zoomedFiles.map((f) => ({
       id: f.filePath,
       weight: f.size,
       data: f,
@@ -485,7 +505,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
           element("div", { className: "treemap-file-name", text: file.fileName }),
           element("div", { className: "treemap-file-meta" }, [
             element("span", { text: `+${file.additions} / -${file.deletions}` }),
-            element("span", { text: `size: ${file.size}` }),
+            element("span", { text: `size: ${file.size} (${file.balanceTag})` }),
           ]),
         ],
       );
@@ -496,7 +516,99 @@ function renderOverviewMain(replay: Replay): HTMLElement {
 
     dirBox.append(dirHeader, dirContent);
     canvas.append(dirBox);
+  } else {
+    // Root View
+    breadcrumbBar = element("nav", { className: "treemap-breadcrumb-bar" }, [
+      element("div", { className: "breadcrumb-path" }, [
+        element("span", { className: "breadcrumb-active", text: "📁 All Folders (Root)" }),
+        element("span", {
+          className: "breadcrumb-hint",
+          text: "Click any folder header to zoom in",
+        }),
+      ]),
+    ]);
+
+    const dirMap = new Map<string, FileChurnMetric[]>();
+    for (const file of fileMetrics) {
+      const list = dirMap.get(file.dirPath) ?? [];
+      list.push(file);
+      dirMap.set(file.dirPath, list);
+    }
+
+    const dirItems: TreemapItem<{ dirPath: string; files: FileChurnMetric[] }>[] = [];
+    for (const [dirPath, files] of dirMap.entries()) {
+      const dirWeight = files.reduce((sum, f) => sum + f.size, 0);
+      dirItems.push({ id: dirPath, weight: dirWeight, data: { dirPath, files } });
+    }
+
+    const dirLayout = squarify(dirItems, { x: 0, y: 0, w: 100, h: 100 });
+
+    for (const dirRect of dirLayout) {
+      const dirBox = element("div", {
+        className: "treemap-dir-box",
+        style: `left: calc(${dirRect.x.toFixed(2)}% + 3px); top: calc(${dirRect.y.toFixed(2)}% + 3px); width: calc(${dirRect.w.toFixed(2)}% - 6px); height: calc(${dirRect.h.toFixed(2)}% - 6px);`,
+      });
+
+      const dirHeader = element(
+        "div",
+        {
+          className: "treemap-dir-header is-clickable",
+          title: `Click to zoom into ${dirRect.item.data.dirPath}`,
+        },
+        [
+          element("span", { text: `📁 ${dirRect.item.data.dirPath}` }),
+          element("span", {
+            className: "dir-loc",
+            text: `${dirRect.item.weight} LOC · Zoom ↗`,
+          }),
+        ],
+        () => {
+          zoomedDirPath = dirRect.item.data.dirPath;
+          renderReplay(replay);
+        },
+      );
+
+      const dirContent = element("div", { className: "treemap-dir-content" });
+
+      const fileItems: TreemapItem<FileChurnMetric>[] = dirRect.item.data.files.map((f) => ({
+        id: f.filePath,
+        weight: f.size,
+        data: f,
+      }));
+
+      const fileLayout = squarify(fileItems, { x: 0, y: 0, w: 100, h: 100 });
+
+      for (const fileRect of fileLayout) {
+        const file = fileRect.item.data;
+        const tile = element(
+          "div",
+          {
+            className: "treemap-file-tile",
+            style: `left: calc(${fileRect.x.toFixed(2)}% + 2px); top: calc(${fileRect.y.toFixed(2)}% + 2px); width: calc(${fileRect.w.toFixed(2)}% - 4px); height: calc(${fileRect.h.toFixed(2)}% - 4px); background: ${file.color}; border: 1px solid ${file.borderColor};`,
+          },
+          [
+            element("div", { className: "treemap-file-name", text: file.fileName }),
+            element("div", { className: "treemap-file-meta" }, [
+              element("span", { text: `+${file.additions} / -${file.deletions}` }),
+              element("span", { text: `size: ${file.size}` }),
+            ]),
+          ],
+        );
+
+        tile.title = `${file.filePath}\n+${file.additions} / -${file.deletions} lines\nSize: max(${file.additions}, ${file.deletions}) = ${file.size}\nBalance: ${file.balanceTag}`;
+        dirContent.append(tile);
+      }
+
+      dirBox.append(dirHeader, dirContent);
+      canvas.append(dirBox);
+    }
   }
+
+  const activeFiles =
+    zoomedDirPath !== null ? fileMetrics.filter((f) => f.dirPath === zoomedDirPath) : fileMetrics;
+  const activeWeight = activeFiles.reduce((sum, f) => sum + f.size, 0);
+  const activeAdditions = activeFiles.reduce((sum, f) => sum + f.additions, 0);
+  const activeDeletions = activeFiles.reduce((sum, f) => sum + f.deletions, 0);
 
   return element("main", { className: "review-main" }, [
     element("header", { className: "review-header" }, [
@@ -512,6 +624,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       element("div", { className: "header-actions" }, [
         button("Back to review", "button primary", () => {
           isOverviewActive = false;
+          zoomedDirPath = null;
           if (window.location.hash === "#overview") {
             window.history.replaceState({}, "", window.location.pathname);
           }
@@ -522,31 +635,34 @@ function renderOverviewMain(replay: Replay): HTMLElement {
     element("div", { className: "overview-scroll" }, [
       element("section", { className: "treemap-hero" }, [
         element("p", { className: "eyebrow", text: "STACK CHURN HEATMAP · MECHANICAL FOOTPRINT" }),
-        element("h1", { text: "Stack Overview" }),
+        element("h1", { text: zoomedDirPath ? `Folder: ${zoomedDirPath}` : "Stack Overview" }),
         element("p", {
           text:
-            replay.description ??
-            "Mechanical diff footprint across touched files in this replay stack.",
+            zoomedDirPath !== null
+              ? `Showing only files inside ${zoomedDirPath}.`
+              : (replay.description ??
+                "Mechanical diff footprint across touched files in this replay stack."),
         }),
         element("div", { className: "treemap-stats-row" }, [
           element("span", { className: "treemap-stat-badge" }, [
-            element("span", { text: "Files:" }),
-            element("strong", { text: String(fileMetrics.length) }),
+            element("span", { text: zoomedDirPath ? "Folder Files:" : "Files:" }),
+            element("strong", { text: String(activeFiles.length) }),
           ]),
           element("span", { className: "treemap-stat-badge" }, [
-            element("span", { text: "Max Churn LOC:" }),
-            element("strong", { text: `${totalMaxLoc} lines` }),
+            element("span", { text: zoomedDirPath ? "Folder Churn:" : "Max Churn LOC:" }),
+            element("strong", { text: `${activeWeight} lines` }),
           ]),
           element("span", { className: "treemap-stat-badge" }, [
             element("span", { text: "Total Additions:" }),
-            element("strong", { style: "color: #7ee787;", text: `+${totalAdditions}` }),
+            element("strong", { style: "color: #7ee787;", text: `+${activeAdditions}` }),
           ]),
           element("span", { className: "treemap-stat-badge" }, [
             element("span", { text: "Total Deletions:" }),
-            element("strong", { style: "color: #ffa198;", text: `-${totalDeletions}` }),
+            element("strong", { style: "color: #ffa198;", text: `-${activeDeletions}` }),
           ]),
         ]),
       ]),
+      breadcrumbBar,
       element("section", { className: "spectrum-legend-card" }, [
         element("div", { className: "spectrum-legend-top" }, [
           element("span", {

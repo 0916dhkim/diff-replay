@@ -1193,6 +1193,60 @@ pre {
   font-size: 10px;
 }
 
+.treemap-breadcrumb-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-family: "DM Mono", monospace;
+  font-size: 11.5px;
+}
+
+.breadcrumb-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breadcrumb-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--lime);
+  cursor: pointer;
+  font-weight: 600;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.breadcrumb-btn:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb-sep {
+  color: var(--faint);
+}
+
+.breadcrumb-active {
+  color: #ffffff;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breadcrumb-hint {
+  color: var(--faint);
+  font-size: 10px;
+  margin-left: 6px;
+}
+
 .treemap-canvas {
   position: relative;
   width: 100%;
@@ -1234,6 +1288,21 @@ pre {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.treemap-dir-header.is-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 4px;
+  transition: background 120ms ease;
+}
+
+.treemap-dir-header.is-clickable:hover {
+  background: rgba(56, 139, 253, 0.2);
+}
+
+.treemap-dir-header.is-clickable:hover .dir-loc {
+  color: var(--lime);
 }
 
 .treemap-dir-header span:first-child {
