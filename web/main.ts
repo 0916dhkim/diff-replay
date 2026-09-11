@@ -754,10 +754,12 @@ function renderBranchContent(branch: DirectoryBranch, replay: Replay, depth = 1)
           style: `left: calc(${fileRect.x.toFixed(2)}% + 1.5px); top: calc(${fileRect.y.toFixed(2)}% + 1.5px); width: calc(${fileRect.w.toFixed(2)}% - 3px); height: calc(${fileRect.h.toFixed(2)}% - 3px); background: ${file.color}; border: 1px solid ${file.borderColor};`,
         },
         [
-          element("div", { className: "treemap-file-name", text: file.fileName }),
-          element("div", { className: "treemap-file-meta" }, [
-            element("span", { text: `+${file.additions} / -${file.deletions}` }),
-            element("span", { text: `size: ${file.size}` }),
+          element("div", { className: "tile-content" }, [
+            element("div", { className: "treemap-file-name", text: file.fileName }),
+            element("div", { className: "treemap-file-meta" }, [
+              element("span", { text: `+${file.additions} / -${file.deletions}` }),
+              element("span", { text: `size: ${file.size}` }),
+            ]),
           ]),
         ],
       );

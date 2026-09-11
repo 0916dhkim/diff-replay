@@ -1417,17 +1417,25 @@ pre {
 }
 
 .treemap-file-tile {
+  container-type: size;
   position: absolute;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 4px 6px;
   border-radius: 4px;
   font-family: "DM Mono", monospace;
   cursor: default;
   overflow: hidden;
   user-select: none;
+}
+
+.tile-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  overflow: hidden;
 }
 
 .treemap-file-name {
@@ -1437,18 +1445,66 @@ pre {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .treemap-file-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px 6px;
   align-items: center;
   justify-content: space-between;
-  margin-top: 2px;
+  gap: 6px;
   color: rgba(255, 255, 255, 0.85);
   font-size: 9px;
   white-space: nowrap;
   overflow: hidden;
+  line-height: 1;
+}
+
+/* 1. Short tiles (<35px): switch from 2 rows to 1 horizontal row */
+@container (max-height: 35px) {
+  .tile-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    gap: 10px;
+  }
+
+  .treemap-file-name {
+    flex-shrink: 1;
+  }
+
+  .treemap-file-meta {
+    flex-shrink: 0;
+    gap: 8px;
+  }
+}
+
+/* 2. Short + compact width (<220px): hide 'size: X', keep '+A / -D' */
+@container (max-height: 35px) and (max-width: 220px) {
+  .treemap-file-meta span:last-child {
+    display: none;
+  }
+}
+
+/* 3. Short + narrow (<140px): hide meta completely */
+@container (max-height: 35px) and (max-width: 140px) {
+  .treemap-file-meta {
+    display: none;
+  }
+}
+
+/* 4. Tall + narrow (<85px width): hide meta */
+@container (max-width: 85px) {
+  .treemap-file-meta {
+    display: none;
+  }
+}
+
+/* 5. Micro tiles (<16px height or <30px width): hide text to avoid visual clutter */
+@container (max-height: 16px), (max-width: 30px) {
+  .treemap-file-name,
+  .treemap-file-meta {
+    display: none;
+  }
 }
