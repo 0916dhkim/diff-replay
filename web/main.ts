@@ -521,7 +521,6 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       );
 
       tile.title = `${file.filePath}\n+${file.additions} / -${file.deletions} lines\nSize: max(${file.additions}, ${file.deletions}) = ${file.size}\nBalance: ${file.balanceTag}`;
-      tile.addEventListener("mouseenter", () => updateHud(file));
       dirContent.append(tile);
     }
 
