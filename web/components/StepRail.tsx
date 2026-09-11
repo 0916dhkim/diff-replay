@@ -69,19 +69,36 @@ export default function StepRail(props: StepRailProps) {
         >
           <div class="step-filter-banner">
             <div class="filter-copy">
-              <span class="filter-tag">FILTER</span>
+              <svg
+                class="filter-icon"
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M1.5 2.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .53 1.28L9.5 7.81v5.44a.75.75 0 0 1-1.13.65l-2-1.15A.75.75 0 0 1 6 12.1V7.81L1.72 3.03a.75.75 0 0 1-.22-.53Z" />
+              </svg>
               <strong class="filter-filename" title={props.selectedFile!}>
                 {props.selectedFile!.split("/").pop()}
               </strong>
-              <span class="filter-count">({displayedSteps().length})</span>
             </div>
             <button
               class="filter-clear-btn"
               type="button"
               onClick={props.onClearFilter}
+              aria-label="Clear file filter"
               title="Clear file filter (Esc)"
             >
-              × Clear
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+              </svg>
             </button>
           </div>
         </Show>
