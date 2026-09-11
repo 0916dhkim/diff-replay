@@ -6,7 +6,6 @@ interface ReviewHeaderProps {
   viewMode: "split" | "unified";
   onChangeViewMode: (mode: "split" | "unified") => void;
   onBackToHome: () => void;
-  onBackToReview: () => void;
   onApproveAndAdvance: () => void;
 }
 
@@ -25,32 +24,23 @@ export default function ReviewHeader(props: ReviewHeaderProps) {
         </Show>
       </div>
       <div class="header-actions">
-        <Show
-          when={props.isOverview}
-          fallback={
-            <>
-              <div class="segments">
-                <button
-                  class={props.viewMode === "split" ? "active" : ""}
-                  onClick={() => props.onChangeViewMode("split")}
-                >
-                  Split
-                </button>
-                <button
-                  class={props.viewMode === "unified" ? "active" : ""}
-                  onClick={() => props.onChangeViewMode("unified")}
-                >
-                  Unified
-                </button>
-              </div>
-              <button class="button primary" onClick={props.onApproveAndAdvance}>
-                Approve & next
-              </button>
-            </>
-          }
-        >
-          <button class="button primary" onClick={props.onBackToReview}>
-            Back to review
+        <Show when={!props.isOverview}>
+          <div class="segments">
+            <button
+              class={props.viewMode === "split" ? "active" : ""}
+              onClick={() => props.onChangeViewMode("split")}
+            >
+              Split
+            </button>
+            <button
+              class={props.viewMode === "unified" ? "active" : ""}
+              onClick={() => props.onChangeViewMode("unified")}
+            >
+              Unified
+            </button>
+          </div>
+          <button class="button primary" onClick={props.onApproveAndAdvance}>
+            Approve & next
           </button>
         </Show>
       </div>

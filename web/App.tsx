@@ -316,7 +316,6 @@ export function App() {
               viewMode={viewMode()}
               onChangeViewMode={setViewMode}
               onBackToHome={() => navigate("/")}
-              onBackToReview={handleBackToReview}
               onApproveAndAdvance={() => void approveAndAdvance()}
             />
             <Show
