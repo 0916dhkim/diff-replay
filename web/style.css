@@ -1272,7 +1272,7 @@ pre {
     background 140ms ease;
 }
 
-.treemap-dir-box:has(.treemap-dir-header.is-clickable:hover) {
+.treemap-dir-box:has(> .treemap-dir-header.is-clickable:hover) {
   border-color: #58a6ff;
   box-shadow:
     0 0 0 1px #58a6ff,
@@ -1282,12 +1282,12 @@ pre {
   z-index: 10;
 }
 
-.treemap-dir-box:has(.treemap-dir-header.is-clickable:hover) > .treemap-dir-header {
+.treemap-dir-box:has(> .treemap-dir-header.is-clickable:hover) > .treemap-dir-header {
   color: #ffffff;
   background: transparent;
 }
 
-.treemap-dir-box:has(.treemap-dir-header.is-clickable:hover) > .treemap-dir-header .dir-loc {
+.treemap-dir-box:has(> .treemap-dir-header.is-clickable:hover) > .treemap-dir-header .dir-loc {
   color: var(--lime);
 }
 
@@ -1363,7 +1363,7 @@ pre {
     background 140ms ease;
 }
 
-.treemap-sub-box:has(.treemap-sub-header:hover) {
+.treemap-sub-box:has(> .treemap-sub-header:hover) {
   border-color: #79c0ff;
   box-shadow:
     0 0 0 1px #79c0ff,
@@ -1373,12 +1373,12 @@ pre {
   z-index: 20;
 }
 
-.treemap-sub-box:has(.treemap-sub-header:hover) > .treemap-sub-header {
+.treemap-sub-box:has(> .treemap-sub-header:hover) > .treemap-sub-header {
   color: #ffffff;
   background: transparent;
 }
 
-.treemap-sub-box:has(.treemap-sub-header:hover) > .treemap-sub-header .dir-loc {
+.treemap-sub-box:has(> .treemap-sub-header:hover) > .treemap-sub-header .dir-loc {
   color: var(--lime);
 }
 
