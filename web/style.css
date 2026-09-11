@@ -928,13 +928,7 @@ pre {
   margin-bottom: 6px;
   width: fit-content;
   box-sizing: border-box;
-  transition: all 120ms ease;
-}
-
-.step-pill:hover {
-  background: rgba(56, 139, 253, 0.22);
-  border-color: #58a6ff;
-  color: #ffffff;
+  pointer-events: none;
 }
 
 .step-pill.general {
