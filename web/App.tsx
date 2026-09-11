@@ -15,10 +15,23 @@ type RouteState = {
   error?: string;
 };
 
+function parseReplayPath(pathname: string): { replayId: string; stepId?: string } | null {
+  const matchWithStep = pathname.match(/^\/replays\/([^/]+)\/steps\/([^/]+)$/);
+  if (matchWithStep?.[1] && matchWithStep[2]) {
+    return { replayId: matchWithStep[1], stepId: decodeURIComponent(matchWithStep[2]) };
+  }
+  const matchReplayOnly = pathname.match(/^\/replays\/([^/]+)$/);
+  if (matchReplayOnly?.[1]) {
+    return { replayId: matchReplayOnly[1] };
+  }
+  return null;
+}
+
 export function App() {
   const [routeState, setRouteState] = createSignal<RouteState>({ view: "home" });
   const [replays, setReplays] = createSignal<ReplaySummary[]>([]);
   const [currentReplay, setCurrentReplay] = createSignal<Replay | null>(null);
+  const [activeStepId, setActiveStepId] = createSignal<string>("");
   const [isOverview, setIsOverview] = createSignal(false);
   const [zoomedPath, setZoomedPath] = createSignal<string | null>(null);
   const [selectedFile, setSelectedFile] = createSignal<string | null>(null);
@@ -31,9 +44,9 @@ export function App() {
 
   const activeStep = () => {
     const replay = currentReplay();
-    return (
-      replay?.steps.find((step) => step.stepId === replay.state.activeStepId) ?? replay?.steps[0]
-    );
+    if (!replay) return undefined;
+    const currentId = activeStepId();
+    return replay.steps.find((step) => step.stepId === currentId) ?? replay.steps[0];
   };
 
   const activeIndex = () => {
@@ -50,28 +63,51 @@ export function App() {
 
   const refreshReplay = async (replayId: string, generation: number): Promise<void> => {
     const { replay } = await api<{ replay: Replay }>(`/api/replays/${replayId}`);
-    if (generation === routeGeneration && currentReplay()?.id === replayId)
+    if (generation === routeGeneration && currentReplay()?.id === replayId) {
       setCurrentReplay(replay);
+    }
   };
 
   const route = async (): Promise<void> => {
     const generation = ++routeGeneration;
-    eventSource?.close();
-    eventSource = null;
-    setCurrentReplay(null);
-    setIsOverview(false);
-    setZoomedPath(null);
-    setSelectedFile(null);
+    const parsed = parseReplayPath(window.location.pathname);
 
-    const match = window.location.pathname.match(/^\/replays\/([^/]+)$/);
-    try {
-      if (match?.[1]) {
-        const replayId = match[1];
+    if (parsed) {
+      const replayId = parsed.replayId;
+      if (currentReplay()?.id === replayId) {
+        if (parsed.stepId) setActiveStepId(parsed.stepId);
+        syncOverviewFromHash();
+        return;
+      }
+
+      eventSource?.close();
+      eventSource = null;
+      setCurrentReplay(null);
+      setIsOverview(false);
+      setZoomedPath(null);
+      setSelectedFile(null);
+
+      try {
         const { replay } = await api<{ replay: Replay }>(`/api/replays/${replayId}`);
         if (generation !== routeGeneration) return;
 
         setCurrentReplay(replay);
+        const resolvedStepId =
+          parsed.stepId && replay.steps.some((s) => s.stepId === parsed.stepId)
+            ? parsed.stepId
+            : (replay.steps[0]?.stepId ?? "");
+
+        setActiveStepId(resolvedStepId);
         syncOverviewFromHash();
+
+        if (!parsed.stepId && resolvedStepId) {
+          window.history.replaceState(
+            {},
+            "",
+            `/replays/${replayId}/steps/${encodeURIComponent(resolvedStepId)}${window.location.hash}`,
+          );
+        }
+
         setRouteState({ view: "replay", replayId });
         eventSource = new EventSource(`/api/replays/${replayId}/events`);
         eventSource.addEventListener("message", (event) => {
@@ -82,18 +118,30 @@ export function App() {
             // Ignore malformed server-sent events.
           }
         });
-      } else {
+      } catch (error) {
+        if (generation === routeGeneration) {
+          setRouteState({
+            view: "error",
+            error: error instanceof Error ? error.message : "Could not load this replay",
+          });
+        }
+      }
+    } else {
+      eventSource?.close();
+      eventSource = null;
+      setCurrentReplay(null);
+      try {
         const { replays: nextReplays } = await api<{ replays: ReplaySummary[] }>("/api/replays");
         if (generation !== routeGeneration) return;
         setReplays(nextReplays);
         setRouteState({ view: "home" });
-      }
-    } catch (error) {
-      if (generation === routeGeneration) {
-        setRouteState({
-          view: "error",
-          error: error instanceof Error ? error.message : "Could not load this replay",
-        });
+      } catch (error) {
+        if (generation === routeGeneration) {
+          setRouteState({
+            view: "error",
+            error: error instanceof Error ? error.message : "Could not load replays",
+          });
+        }
       }
     }
   };
@@ -148,17 +196,6 @@ export function App() {
     return result;
   };
 
-  const selectStep = async (stepId: string): Promise<boolean> => {
-    const replay = currentReplay();
-    if (!replay || replay.state.activeStepId === stepId) return Boolean(replay);
-    return Boolean(
-      await mutateReplay(replay.id, `/api/replays/${replay.id}/state`, {
-        method: "PATCH",
-        body: JSON.stringify({ activeStepId: stepId }),
-      }),
-    );
-  };
-
   const setStatus = async (stepId: string, status: StepStatus | null): Promise<boolean> => {
     const replay = currentReplay();
     if (!replay) return false;
@@ -174,15 +211,28 @@ export function App() {
     );
   };
 
+  const selectReviewStep = (stepId: string) => {
+    setIsOverview(false);
+    setZoomedPath(null);
+    clearOverviewHash();
+    const replay = currentReplay();
+    if (!replay) return;
+    setActiveStepId(stepId);
+    window.history.pushState({}, "", `/replays/${replay.id}/steps/${encodeURIComponent(stepId)}`);
+  };
+
   const approveAndAdvance = async (): Promise<void> => {
     const replay = currentReplay();
     if (!replay) return;
-    const index = replay.steps.findIndex((step) => step.stepId === replay.state.activeStepId);
+    const currentId = activeStepId();
+    const index = replay.steps.findIndex((step) => step.stepId === currentId);
     const step = replay.steps[index];
     if (!step || !(await setStatus(step.stepId, "approved"))) return;
     if (currentReplay()?.id !== replay.id) return;
     const next = replay.steps[Math.min(index + 1, replay.steps.length - 1)];
-    if (next && next.stepId !== step.stepId) await selectStep(next.stepId);
+    if (next && next.stepId !== step.stepId) {
+      selectReviewStep(next.stepId);
+    }
   };
 
   const addNote = async (text: string, stepId?: string): Promise<void> => {
@@ -202,13 +252,6 @@ export function App() {
     });
   };
 
-  const selectReviewStep = (stepId: string) => {
-    setIsOverview(false);
-    setZoomedPath(null);
-    clearOverviewHash();
-    void selectStep(stepId);
-  };
-
   createEffect(
     () => currentReplay()?.title,
     (title) => {
@@ -221,8 +264,15 @@ export function App() {
     () => {
       const onPopState = () => {
         const replay = currentReplay();
-        if (replay && window.location.pathname === `/replays/${replay.id}`) syncOverviewFromHash();
-        else void route();
+        const parsed = parseReplayPath(window.location.pathname);
+        if (replay && parsed && parsed.replayId === replay.id) {
+          if (parsed.stepId && parsed.stepId !== activeStepId()) {
+            setActiveStepId(parsed.stepId);
+          }
+          syncOverviewFromHash();
+        } else {
+          void route();
+        }
       };
 
       const onKeyDown = (event: KeyboardEvent) => {
@@ -301,7 +351,7 @@ export function App() {
         <div class={`workspace ${sidebarsHidden() ? "sidebars-hidden" : ""}`}>
           <StepRail
             replay={currentReplay()!}
-            activeStepId={currentReplay()!.state.activeStepId}
+            activeStepId={activeStepId()}
             isOverview={isOverview()}
             selectedFile={selectedFile()}
             onSelectStep={selectReviewStep}
@@ -340,7 +390,7 @@ export function App() {
           </main>
           <ReviewNotes
             notes={currentReplay()!.state.notes}
-            activeStepId={currentReplay()!.state.activeStepId}
+            activeStepId={activeStepId()}
             isOverview={isOverview()}
             onAddNote={(text, stepId) => void addNote(text, stepId)}
             onDeleteNote={(id) => void deleteNote(id)}

@@ -148,6 +148,10 @@ export async function createApp(options: CreateAppOptions): Promise<FastifyInsta
     app.get<{ Params: { replayId: string } }>("/replays/:replayId", async (_request, reply) =>
       reply.type("text/html").send(indexHtml),
     );
+    app.get<{ Params: { replayId: string; stepId: string } }>(
+      "/replays/:replayId/steps/:stepId",
+      async (_request, reply) => reply.type("text/html").send(indexHtml),
+    );
   }
 
   await options.store.initialize();

@@ -147,6 +147,14 @@ describe("replay API", () => {
         (await productionApp.inject({ method: "GET", url: "/replays/0123456789abcdef" }))
           .statusCode,
       ).toBe(200);
+      expect(
+        (
+          await productionApp.inject({
+            method: "GET",
+            url: "/replays/0123456789abcdef/steps/step-1",
+          })
+        ).statusCode,
+      ).toBe(200);
     } finally {
       await productionApp.close();
     }
