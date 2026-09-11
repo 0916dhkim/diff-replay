@@ -21,6 +21,7 @@ export function App() {
   const [currentReplay, setCurrentReplay] = createSignal<Replay | null>(null);
   const [isOverview, setIsOverview] = createSignal(false);
   const [zoomedPath, setZoomedPath] = createSignal<string | null>(null);
+  const [selectedFile, setSelectedFile] = createSignal<string | null>(null);
   const [viewMode, setViewMode] = createSignal<"split" | "unified">("split");
   const [sidebarsHidden, setSidebarsHidden] = createSignal(false);
 
@@ -60,6 +61,7 @@ export function App() {
     setCurrentReplay(null);
     setIsOverview(false);
     setZoomedPath(null);
+    setSelectedFile(null);
 
     const match = window.location.pathname.match(/^\/replays\/([^/]+)$/);
     try {
@@ -110,6 +112,7 @@ export function App() {
     const next = !isOverview();
     setIsOverview(next);
     setZoomedPath(null);
+    setSelectedFile(null);
     if (next) updateOverviewHash(null);
     else clearOverviewHash();
   };
@@ -117,6 +120,7 @@ export function App() {
   const handleBackToReview = () => {
     setIsOverview(false);
     setZoomedPath(null);
+    setSelectedFile(null);
     clearOverviewHash();
   };
 
@@ -225,11 +229,18 @@ export function App() {
         const target = event.target as HTMLElement | null;
         if (target?.matches("input, textarea") || !currentReplay()) return;
 
-        if (event.key === "Escape" && isOverview()) {
-          event.preventDefault();
-          if (zoomedPath() !== null) handleZoom(null);
-          else handleBackToReview();
-          return;
+        if (event.key === "Escape") {
+          if (selectedFile() !== null) {
+            event.preventDefault();
+            setSelectedFile(null);
+            return;
+          }
+          if (isOverview()) {
+            event.preventDefault();
+            if (zoomedPath() !== null) handleZoom(null);
+            else handleBackToReview();
+            return;
+          }
         }
         if (event.code === "Space") {
           event.preventDefault();
@@ -292,9 +303,11 @@ export function App() {
             replay={currentReplay()!}
             activeStepId={currentReplay()!.state.activeStepId}
             isOverview={isOverview()}
+            selectedFile={selectedFile()}
             onSelectStep={selectReviewStep}
             onToggleOverview={handleToggleOverview}
             onUnapprove={(id) => void setStatus(id, null)}
+            onClearFilter={() => setSelectedFile(null)}
           />
           <main class="review-main">
             <ReviewHeader
@@ -320,7 +333,9 @@ export function App() {
               <TreemapOverview
                 replay={currentReplay()!}
                 zoomedPath={zoomedPath()}
+                selectedFile={selectedFile()}
                 onZoom={handleZoom}
+                onSelectFile={setSelectedFile}
               />
             </Show>
           </main>

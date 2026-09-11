@@ -13,14 +13,18 @@ import {
 interface TreemapOverviewProps {
   replay: Replay;
   zoomedPath: string | null;
+  selectedFile: string | null;
   onZoom: (path: string | null) => void;
+  onSelectFile: (filePath: string | null) => void;
 }
 
 interface BranchContentProps {
   branch: DirectoryBranch;
   pixelRect: Pick<Rect, "w" | "h">;
   depth: number;
+  selectedFile: string | null;
   onZoom: (path: string) => void;
+  onSelectFile: (filePath: string | null) => void;
 }
 
 function collectDescendantFiles(node: DirectoryBranch["node"]): FileChurnMetric[] {
@@ -45,10 +49,15 @@ function findNode(node: DirectoryBranch["node"], path: string): DirectoryBranch[
 type ContainerChild =
   { kind: "dir"; branch: DirectoryBranch } | { kind: "file"; file: FileChurnMetric };
 
-function FileTile(props: { file: FileChurnMetric; fileRect: Rect }) {
+function FileTile(props: {
+  file: FileChurnMetric;
+  fileRect: Rect;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
   return (
     <div
-      class="treemap-file-tile"
+      class={`treemap-file-tile ${props.isSelected ? "selected" : ""}`}
       style={{
         left: `calc(${props.fileRect.x.toFixed(2)}% + 1.5px)`,
         top: `calc(${props.fileRect.y.toFixed(2)}% + 1.5px)`,
@@ -57,7 +66,8 @@ function FileTile(props: { file: FileChurnMetric; fileRect: Rect }) {
         background: props.file.color,
         border: `1px solid ${props.file.borderColor}`,
       }}
-      title={`${props.file.filePath}\n+${props.file.additions} / -${props.file.deletions} lines\nSize: max(${props.file.additions}, ${props.file.deletions}) = ${props.file.size}\nBalance: ${props.file.balanceTag}`}
+      title={`${props.file.filePath}\n+${props.file.additions} / -${props.file.deletions} lines\nSize: max(${props.file.additions}, ${props.file.deletions}) = ${props.file.size}\nBalance: ${props.file.balanceTag}\nClick to filter steps in left sidebar`}
+      onClick={props.onSelect}
     >
       <div class="tile-content">
         <div class="treemap-file-name">{props.file.fileName}</div>
@@ -117,7 +127,18 @@ function BranchContent(props: BranchContentProps) {
         {(itemRect) => {
           const item = itemRect.item.data;
           if (item.kind === "file") {
-            return <FileTile file={item.file} fileRect={itemRect} />;
+            return (
+              <FileTile
+                file={item.file}
+                fileRect={itemRect}
+                isSelected={props.selectedFile === item.file.filePath}
+                onSelect={() =>
+                  props.onSelectFile(
+                    props.selectedFile === item.file.filePath ? null : item.file.filePath,
+                  )
+                }
+              />
+            );
           }
 
           const sub = item.branch;
@@ -152,7 +173,9 @@ function BranchContent(props: BranchContentProps) {
                 branch={sub}
                 pixelRect={pixelRect}
                 depth={props.depth + 1}
+                selectedFile={props.selectedFile}
                 onZoom={props.onZoom}
+                onSelectFile={props.onSelectFile}
               />
             </div>
           );
@@ -339,7 +362,9 @@ export default function TreemapOverview(props: TreemapOverviewProps) {
                       branch={branch}
                       pixelRect={{ w: (dirRect.w / 100) * dim.w, h: (dirRect.h / 100) * dim.h }}
                       depth={1}
+                      selectedFile={props.selectedFile}
                       onZoom={(path) => props.onZoom(path)}
+                      onSelectFile={props.onSelectFile}
                     />
                   </div>
                 );
@@ -364,7 +389,9 @@ export default function TreemapOverview(props: TreemapOverviewProps) {
               branch={targetBranch()}
               pixelRect={dim}
               depth={1}
+              selectedFile={props.selectedFile}
               onZoom={(path) => props.onZoom(path)}
+              onSelectFile={props.onSelectFile}
             />
           </div>
         </Show>

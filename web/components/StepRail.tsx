@@ -6,9 +6,11 @@ interface StepRailProps {
   replay: Replay;
   activeStepId: string;
   isOverview: boolean;
+  selectedFile: string | null;
   onSelectStep: (stepId: string) => void;
   onToggleOverview: () => void;
   onUnapprove: (stepId: string) => void;
+  onClearFilter: () => void;
 }
 
 export default function StepRail(props: StepRailProps) {
@@ -18,6 +20,13 @@ export default function StepRail(props: StepRailProps) {
     () =>
       Object.values(props.replay.state.stepStatus).filter((status) => status === "approved").length,
   );
+  const displayedSteps = createMemo(() => {
+    const file = props.selectedFile;
+    if (!file) return props.replay.steps;
+    return props.replay.steps.filter(
+      (s) => s.filePath === file || s.diff.includes(`b/${file}`) || s.diff.includes(`a/${file}`),
+    );
+  });
 
   return (
     <aside class="step-rail">
@@ -50,20 +59,46 @@ export default function StepRail(props: StepRailProps) {
             </small>
           </span>
         </button>
-        <div class="step-section-divider">
-          <span>STEPS ({props.replay.steps.length})</span>
-        </div>
-        <For each={props.replay.steps}>
-          {(step, index) => (
-            <StepRow
-              step={step}
-              index={index()}
-              isActive={step.stepId === props.activeStepId && !props.isOverview}
-              status={props.replay.state.stepStatus[step.stepId]}
-              onSelect={props.onSelectStep}
-              onUnapprove={props.onUnapprove}
-            />
-          )}
+        <Show
+          when={props.selectedFile}
+          fallback={
+            <div class="step-section-divider">
+              <span>STEPS ({props.replay.steps.length})</span>
+            </div>
+          }
+        >
+          <div class="step-filter-banner">
+            <div class="filter-copy">
+              <span class="filter-tag">FILTER</span>
+              <strong class="filter-filename" title={props.selectedFile!}>
+                {props.selectedFile!.split("/").pop()}
+              </strong>
+              <span class="filter-count">({displayedSteps().length})</span>
+            </div>
+            <button
+              class="filter-clear-btn"
+              type="button"
+              onClick={props.onClearFilter}
+              title="Clear file filter (Esc)"
+            >
+              × Clear
+            </button>
+          </div>
+        </Show>
+        <For each={displayedSteps()}>
+          {(step) => {
+            const originalIndex = () => props.replay.steps.indexOf(step);
+            return (
+              <StepRow
+                step={step}
+                index={originalIndex()}
+                isActive={step.stepId === props.activeStepId && !props.isOverview}
+                status={props.replay.state.stepStatus[step.stepId]}
+                onSelect={props.onSelectStep}
+                onUnapprove={props.onUnapprove}
+              />
+            );
+          }}
         </For>
       </nav>
     </aside>
