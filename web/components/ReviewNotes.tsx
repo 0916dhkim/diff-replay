@@ -212,7 +212,7 @@ export function ReviewNotes(props: ReviewNotesProps) {
                           class="btn-save"
                           onClick={() => handleSaveEdit(note.id)}
                         >
-                          Save (Enter)
+                          Save
                         </button>
                       </div>
                     </div>
