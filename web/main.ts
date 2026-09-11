@@ -431,12 +431,6 @@ function renderOverviewMain(replay: Replay): HTMLElement {
   const totalAdditions = fileMetrics.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = fileMetrics.reduce((sum, f) => sum + f.deletions, 0);
 
-  const nextUnapproved =
-    replay.steps.find((s) => replay.state.stepStatus[s.stepId] !== "approved") ?? replay.steps[0]!;
-  const unapprovedIndex = replay.steps.indexOf(nextUnapproved);
-  const nextLabel =
-    unapprovedIndex >= 0 ? `Review step ${unapprovedIndex + 1} →` : "Review step 1 →";
-
   const dirMap = new Map<string, FileChurnMetric[]>();
   for (const file of fileMetrics) {
     const list = dirMap.get(file.dirPath) ?? [];
@@ -460,8 +454,6 @@ function renderOverviewMain(replay: Replay): HTMLElement {
     className: "treemap-hud-stats",
     text: `${fileMetrics.length} files · ${totalMaxLoc} max LOC`,
   });
-  const hudButton = button("Review file step →", "button secondary");
-  hudButton.style.display = "none";
 
   const updateHud = (file: FileChurnMetric): void => {
     hudPath.textContent = file.filePath;
@@ -473,22 +465,12 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       element("span", { style: "color: #ffa198; font-weight: 600;", text: `-${file.deletions}` }),
       element("span", { text: `· size: ${file.size} · ${file.balanceTag}` }),
     );
-    hudButton.style.display = "inline-flex";
-    hudButton.onclick = () => {
-      const step = replay.steps.find((s) => s.filePath === file.filePath);
-      if (step) {
-        isOverviewActive = false;
-        if (window.location.hash === "#overview") {
-          window.history.replaceState({}, "", window.location.pathname);
-        }
-        void selectStep(step.stepId);
-      }
-    };
   };
 
   if (fileMetrics[0]) updateHud(fileMetrics[0]);
 
   const canvas = element("div", { className: "treemap-canvas" });
+  let selectedTileEl: HTMLElement | null = null;
 
   for (const dirRect of dirLayout) {
     const dirBox = element("div", {
@@ -531,14 +513,10 @@ function renderOverviewMain(replay: Replay): HTMLElement {
           ]),
         ],
         () => {
-          const step = replay.steps.find((s) => s.filePath === file.filePath);
-          if (step) {
-            isOverviewActive = false;
-            if (window.location.hash === "#overview") {
-              window.history.replaceState({}, "", window.location.pathname);
-            }
-            void selectStep(step.stepId);
-          }
+          if (selectedTileEl) selectedTileEl.classList.remove("selected");
+          tile.classList.add("selected");
+          selectedTileEl = tile;
+          updateHud(file);
         },
       );
 
@@ -563,12 +541,12 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         element("span", { style: "color: var(--lime); font-weight: 600;", text: "Stack Overview" }),
       ]),
       element("div", { className: "header-actions" }, [
-        button(nextLabel, "button primary", () => {
+        button("Back to review", "button primary", () => {
           isOverviewActive = false;
           if (window.location.hash === "#overview") {
             window.history.replaceState({}, "", window.location.pathname);
           }
-          void selectStep(nextUnapproved.stepId);
+          renderReplay(replay);
         }),
       ]),
     ]),
@@ -623,11 +601,10 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       canvas,
       element("div", { className: "treemap-hud" }, [
         element("div", { className: "treemap-hud-left" }, [
-          element("span", { className: "treemap-hud-tag", text: "SELECTED FILE" }),
+          element("span", { className: "treemap-hud-tag", text: "INSPECT FILE" }),
           hudPath,
           hudStats,
         ]),
-        hudButton,
       ]),
     ]),
   ]);
