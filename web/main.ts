@@ -647,14 +647,19 @@ interface DirectoryBranch {
   files: FileChurnMetric[];
 }
 
+function compactToBranchingNode(node: TreeNode): TreeNode {
+  let curr = node;
+  while (curr.files.length === 0 && curr.children.size === 1) {
+    curr = Array.from(curr.children.values())[0]!;
+  }
+  return curr;
+}
+
 function getChildBranches(node: TreeNode): DirectoryBranch[] {
   const result: DirectoryBranch[] = [];
 
   for (const child of node.children.values()) {
-    let curr = child;
-    while (curr.files.length === 0 && curr.children.size === 1) {
-      curr = Array.from(curr.children.values())[0]!;
-    }
+    const curr = compactToBranchingNode(child);
     result.push({
       dirPath: curr.fullPath,
       node: curr,
@@ -673,11 +678,12 @@ function getChildBranches(node: TreeNode): DirectoryBranch[] {
   return result;
 }
 
-function renderBranchContent(branch: DirectoryBranch, replay: Replay): HTMLElement {
+function renderBranchContent(branch: DirectoryBranch, replay: Replay, depth = 1): HTMLElement {
   const container = element("div", { className: "treemap-dir-content" });
-  const subBranches = getChildBranches(branch.node);
+  const effectiveNode = compactToBranchingNode(branch.node);
+  const subBranches = getChildBranches(effectiveNode);
 
-  if (subBranches.length > 1) {
+  if (depth < 2 && subBranches.length > 1) {
     const subItems: TreemapItem<DirectoryBranch>[] = subBranches.map((sub) => ({
       id: sub.dirPath,
       weight: sub.files.reduce((sum, f) => sum + f.size, 0),
@@ -720,36 +726,7 @@ function renderBranchContent(branch: DirectoryBranch, replay: Replay): HTMLEleme
         },
       );
 
-      const subContent = element("div", { className: "treemap-sub-content" });
-
-      const fileItems: TreemapItem<FileChurnMetric>[] = sub.files.map((f) => ({
-        id: f.filePath,
-        weight: f.size,
-        data: f,
-      }));
-
-      const fileLayout = squarify(fileItems, { x: 0, y: 0, w: 100, h: 100 });
-
-      for (const fileRect of fileLayout) {
-        const file = fileRect.item.data;
-        const tile = element(
-          "div",
-          {
-            className: "treemap-file-tile",
-            style: `left: calc(${fileRect.x.toFixed(2)}% + 1.5px); top: calc(${fileRect.y.toFixed(2)}% + 1.5px); width: calc(${fileRect.w.toFixed(2)}% - 3px); height: calc(${fileRect.h.toFixed(2)}% - 3px); background: ${file.color}; border: 1px solid ${file.borderColor};`,
-          },
-          [
-            element("div", { className: "treemap-file-name", text: file.fileName }),
-            element("div", { className: "treemap-file-meta" }, [
-              element("span", { text: `+${file.additions} / -${file.deletions}` }),
-              element("span", { text: `size: ${file.size}` }),
-            ]),
-          ],
-        );
-
-        tile.title = `${file.filePath}\n+${file.additions} / -${file.deletions} lines\nSize: max(${file.additions}, ${file.deletions}) = ${file.size}\nBalance: ${file.balanceTag}`;
-        subContent.append(tile);
-      }
+      const subContent = renderBranchContent(sub, replay, depth + 1);
 
       subBox.append(subHeader, subContent);
       container.append(subBox);
@@ -769,7 +746,7 @@ function renderBranchContent(branch: DirectoryBranch, replay: Replay): HTMLEleme
         "div",
         {
           className: "treemap-file-tile",
-          style: `left: calc(${fileRect.x.toFixed(2)}% + 2px); top: calc(${fileRect.y.toFixed(2)}% + 2px); width: calc(${fileRect.w.toFixed(2)}% - 4px); height: calc(${fileRect.h.toFixed(2)}% - 4px); background: ${file.color}; border: 1px solid ${file.borderColor};`,
+          style: `left: calc(${fileRect.x.toFixed(2)}% + 1.5px); top: calc(${fileRect.y.toFixed(2)}% + 1.5px); width: calc(${fileRect.w.toFixed(2)}% - 3px); height: calc(${fileRect.h.toFixed(2)}% - 3px); background: ${file.color}; border: 1px solid ${file.borderColor};`,
         },
         [
           element("div", { className: "treemap-file-name", text: file.fileName }),
@@ -851,20 +828,25 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         renderReplay(replay, "breadcrumb-back-button");
       }),
     ]);
-
     const dirBox = element("div", {
       className: "treemap-dir-box",
       style: "left: 3px; top: 3px; width: calc(100% - 6px); height: calc(100% - 6px);",
     });
 
+    const effectiveTarget = targetNode ? compactToBranchingNode(targetNode) : null;
+    const displayTitle =
+      effectiveTarget && effectiveTarget.fullPath !== currentZoom
+        ? `${currentZoom} (${effectiveTarget.fullPath})`
+        : currentZoom;
+
     const dirHeader = element("div", { className: "treemap-dir-header", title: currentZoom }, [
-      element("span", { text: `📁 ${currentZoom}` }),
+      element("span", { text: `📁 ${displayTitle}` }),
       element("span", { className: "dir-loc", text: `${zoomedWeight} LOC · Zoomed View` }),
     ]);
 
     const targetBranch: DirectoryBranch = {
-      dirPath: currentZoom,
-      node: targetNode ?? {
+      dirPath: effectiveTarget?.fullPath ?? currentZoom,
+      node: effectiveTarget ?? {
         name: currentZoom,
         fullPath: currentZoom,
         files: activeFiles,
@@ -873,17 +855,13 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       files: activeFiles,
     };
 
-    const dirContent = renderBranchContent(targetBranch, replay);
+    const dirContent = renderBranchContent(targetBranch, replay, 1);
 
     dirBox.append(dirHeader, dirContent);
     canvas.append(dirBox);
   } else {
     // Root View: Compact root if tree has single-child root with no direct files
-    let displayRoot = tree;
-    while (displayRoot.files.length === 0 && displayRoot.children.size === 1) {
-      displayRoot = Array.from(displayRoot.children.values())[0]!;
-    }
-
+    const displayRoot = compactToBranchingNode(tree);
     const dirBranches = getChildBranches(displayRoot);
 
     breadcrumbBar = element("nav", { className: "treemap-breadcrumb-bar" }, [
