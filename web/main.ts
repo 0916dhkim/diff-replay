@@ -532,7 +532,7 @@ function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
   let totalRemainingWeight = totalWeight;
 
   while (currentRemaining.length > 0) {
-    const isVertical = currentRect.w < currentRect.h;
+    const isVertical = currentRect.w < currentRect.h * 1.15;
     const side = isVertical ? currentRect.w : currentRect.h;
 
     let row = [currentRemaining[0]!];
@@ -543,14 +543,19 @@ function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
       const rowThickness =
         (testWeight / totalRemainingWeight) * (isVertical ? currentRect.h : currentRect.w);
       if (rowThickness <= 0) return Infinity;
-      let maxAspect = 0;
+      let maxScore = 0;
       for (const it of testRow) {
         const itemLen = (Math.max(1, it.weight) / testWeight) * side;
         if (itemLen <= 0) continue;
-        const aspect = Math.max(rowThickness / itemLen, itemLen / rowThickness);
-        if (aspect > maxAspect) maxAspect = aspect;
+        const w = isVertical ? itemLen : rowThickness;
+        const h = isVertical ? rowThickness : itemLen;
+
+        // Strongly prefer landscape / wide tiles (w >= h) for horizontal text readability
+        // Penalize tall/narrow tiles (h > w) so the algorithm avoids vertical pillars
+        const score = w >= h ? w / h : (h / w) * 3.5;
+        if (score > maxScore) maxScore = score;
       }
-      return maxAspect;
+      return maxScore;
     };
 
     while (i < currentRemaining.length) {
