@@ -532,7 +532,30 @@ function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
   let totalRemainingWeight = totalWeight;
 
   while (currentRemaining.length > 0) {
-    const isVertical = currentRect.w < currentRect.h * 1.15;
+    // 1. Try normal short edge preference:
+    // If w < h, short edge is w -> slice horizontally across width (isVertical = true).
+    // If w >= h, short edge is h -> slice vertically across height (isVertical = false).
+    let isVertical = currentRect.w < currentRect.h;
+
+    // Check candidate column dimensions if cutting along normal edge:
+    const firstWeight = Math.max(1, currentRemaining[0]!.weight);
+    const normalColWidth = (firstWeight / totalRemainingWeight) * currentRect.w;
+    const normalColHeight = currentRect.h;
+
+    if (!isVertical) {
+      const MIN_READABLE_WIDTH = 110;
+      const widthTooShort = normalColWidth < MIN_READABLE_WIDTH;
+      const bothShort = normalColWidth < MIN_READABLE_WIDTH && normalColHeight < MIN_READABLE_WIDTH;
+
+      if (bothShort) {
+        // 3. if the width and height is both short, normal short edge preference
+        isVertical = false;
+      } else if (widthTooShort) {
+        // 2. if the width is too short, prefer the wide orientation
+        isVertical = true;
+      }
+    }
+
     const side = isVertical ? currentRect.w : currentRect.h;
 
     let row = [currentRemaining[0]!];
@@ -550,9 +573,23 @@ function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
         const w = isVertical ? itemLen : rowThickness;
         const h = isVertical ? rowThickness : itemLen;
 
-        // Strongly prefer landscape / wide tiles (w >= h) for horizontal text readability
-        // Penalize tall/narrow tiles (h > w) so the algorithm avoids vertical pillars
-        const score = w >= h ? w / h : (h / w) * 3.5;
+        const normalAspect = Math.max(w / h, h / w);
+        const MIN_READABLE_WIDTH = 110;
+        const widthTooShort = w < MIN_READABLE_WIDTH && h > w;
+        const bothShort = w < MIN_READABLE_WIDTH && h < MIN_READABLE_WIDTH;
+
+        let score: number;
+        if (bothShort) {
+          // 3. if the width and height is both short, normal short edge preference
+          score = normalAspect;
+        } else if (widthTooShort) {
+          // 2. if the width is too short, prefer the wide orientation
+          score = (h / w) * (MIN_READABLE_WIDTH / Math.max(1, w)) * 2.5;
+        } else {
+          // 1. try normal short edge preference
+          score = normalAspect;
+        }
+
         if (score > maxScore) maxScore = score;
       }
       return maxScore;
@@ -577,19 +614,19 @@ function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
       const itemLen = (Math.max(1, it.weight) / rowWeight) * side;
       if (isVertical) {
         result.push({
-          x: currentRect.x + offset,
-          y: currentRect.y,
-          w: itemLen,
-          h: rowThickness,
+          x: ((currentRect.x + offset) / rect.w) * 100,
+          y: (currentRect.y / rect.h) * 100,
+          w: (itemLen / rect.w) * 100,
+          h: (rowThickness / rect.h) * 100,
           item: it,
         });
         offset += itemLen;
       } else {
         result.push({
-          x: currentRect.x,
-          y: currentRect.y + offset,
-          w: rowThickness,
-          h: itemLen,
+          x: (currentRect.x / rect.w) * 100,
+          y: ((currentRect.y + offset) / rect.h) * 100,
+          w: (rowThickness / rect.w) * 100,
+          h: (itemLen / rect.h) * 100,
           item: it,
         });
         offset += itemLen;
@@ -682,8 +719,12 @@ function getChildBranches(node: TreeNode): DirectoryBranch[] {
 
   return result;
 }
-
-function renderBranchContent(branch: DirectoryBranch, replay: Replay, depth = 1): HTMLElement {
+function renderBranchContent(
+  branch: DirectoryBranch,
+  replay: Replay,
+  pixelRect: { w: number; h: number },
+  depth = 1,
+): HTMLElement {
   const container = element("div", { className: "treemap-dir-content" });
   const effectiveNode = compactToBranchingNode(branch.node);
   const subBranches = getChildBranches(effectiveNode);
@@ -695,7 +736,7 @@ function renderBranchContent(branch: DirectoryBranch, replay: Replay, depth = 1)
       data: sub,
     }));
 
-    const subLayout = squarify(subItems, { x: 0, y: 0, w: 100, h: 100 });
+    const subLayout = squarify(subItems, { x: 0, y: 0, w: pixelRect.w, h: pixelRect.h });
 
     for (const subRect of subLayout) {
       const sub = subRect.item.data;
@@ -731,7 +772,14 @@ function renderBranchContent(branch: DirectoryBranch, replay: Replay, depth = 1)
         },
       );
 
-      const subContent = renderBranchContent(sub, replay, depth + 1);
+      const subPixelW = (subRect.w / 100) * pixelRect.w;
+      const subPixelH = (subRect.h / 100) * pixelRect.h;
+      const subContent = renderBranchContent(
+        sub,
+        replay,
+        { w: subPixelW, h: subPixelH },
+        depth + 1,
+      );
 
       subBox.append(subHeader, subContent);
       container.append(subBox);
@@ -743,7 +791,7 @@ function renderBranchContent(branch: DirectoryBranch, replay: Replay, depth = 1)
       data: f,
     }));
 
-    const fileLayout = squarify(fileItems, { x: 0, y: 0, w: 100, h: 100 });
+    const fileLayout = squarify(fileItems, { x: 0, y: 0, w: pixelRect.w, h: pixelRect.h });
 
     for (const fileRect of fileLayout) {
       const file = fileRect.item.data;
@@ -772,6 +820,18 @@ function renderBranchContent(branch: DirectoryBranch, replay: Replay, depth = 1)
   return container;
 }
 
+function getCanvasDimensionHint(): { w: number; h: number } {
+  const canvasEl = document.querySelector<HTMLElement>(".treemap-canvas");
+  if (canvasEl && canvasEl.clientWidth > 0 && canvasEl.clientHeight > 0) {
+    return { w: canvasEl.clientWidth, h: canvasEl.clientHeight };
+  }
+  const winW = typeof window !== "undefined" ? window.innerWidth : 1600;
+  const winH = typeof window !== "undefined" ? window.innerHeight : 1000;
+  const w = Math.max(400, winW - 280);
+  const h = Math.max(300, winH - 260);
+  return { w, h };
+}
+
 function renderOverviewMain(replay: Replay): HTMLElement {
   const fileMetrics = computeReplayMetrics(replay.steps);
   const totalMaxLoc = fileMetrics.reduce((sum, f) => sum + f.size, 0);
@@ -784,6 +844,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
   let breadcrumbBar: HTMLElement;
   let activeFiles = fileMetrics;
   let displayTitle = "";
+  const dim = getCanvasDimensionHint();
 
   if (zoomedDirPath !== null) {
     const currentZoom = zoomedDirPath;
@@ -860,7 +921,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       files: activeFiles,
     };
 
-    const dirContent = renderBranchContent(targetBranch, replay, 1);
+    const dirContent = renderBranchContent(targetBranch, replay, dim, 1);
 
     dirBox.append(dirHeader, dirContent);
     canvas.append(dirBox);
@@ -885,7 +946,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       data: b,
     }));
 
-    const dirLayout = squarify(dirItems, { x: 0, y: 0, w: 100, h: 100 });
+    const dirLayout = squarify(dirItems, { x: 0, y: 0, w: dim.w, h: dim.h });
 
     for (const dirRect of dirLayout) {
       const branch = dirRect.item.data;
@@ -916,7 +977,14 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         },
       );
 
-      const dirContent = renderBranchContent(branch, replay);
+      const branchPixelW = (dirRect.w / 100) * dim.w;
+      const branchPixelH = (dirRect.h / 100) * dim.h;
+      const dirContent = renderBranchContent(
+        branch,
+        replay,
+        { w: branchPixelW, h: branchPixelH },
+        1,
+      );
 
       dirBox.append(dirHeader, dirContent);
       canvas.append(dirBox);
