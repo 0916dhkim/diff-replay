@@ -145,12 +145,9 @@ export async function createApp(options: CreateAppOptions): Promise<FastifyInsta
     });
     const indexHtml = await readFile(path.join(options.publicDirectory, "index.html"), "utf8");
     app.get("/", async (_request, reply) => reply.type("text/html").send(indexHtml));
+    app.get("/replays/*", async (_request, reply) => reply.type("text/html").send(indexHtml));
     app.get<{ Params: { replayId: string } }>("/replays/:replayId", async (_request, reply) =>
       reply.type("text/html").send(indexHtml),
-    );
-    app.get<{ Params: { replayId: string; stepId: string } }>(
-      "/replays/:replayId/steps/:stepId",
-      async (_request, reply) => reply.type("text/html").send(indexHtml),
     );
   }
 

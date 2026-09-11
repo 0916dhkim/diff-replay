@@ -155,6 +155,22 @@ describe("replay API", () => {
           })
         ).statusCode,
       ).toBe(200);
+      expect(
+        (
+          await productionApp.inject({
+            method: "GET",
+            url: "/replays/0123456789abcdef/overview",
+          })
+        ).statusCode,
+      ).toBe(200);
+      expect(
+        (
+          await productionApp.inject({
+            method: "GET",
+            url: "/replays/0123456789abcdef/overview/frontend/react",
+          })
+        ).statusCode,
+      ).toBe(200);
     } finally {
       await productionApp.close();
     }

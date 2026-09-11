@@ -1,6 +1,5 @@
 import type { Replay, ReplaySummary, ReviewNote, StepStatus } from "./types.js";
 import { api, showToast } from "./api.js";
-import { clearOverviewHash, parseOverviewHash, updateOverviewHash } from "./utils.js";
 import Home from "./components/Home.jsx";
 import StepRail from "./components/StepRail.jsx";
 import ReviewHeader from "./components/ReviewHeader.jsx";
@@ -15,15 +14,44 @@ type RouteState = {
   error?: string;
 };
 
-function parseReplayPath(pathname: string): { replayId: string; stepId?: string } | null {
-  const matchWithStep = pathname.match(/^\/replays\/([^/]+)\/steps\/([^/]+)$/);
-  if (matchWithStep?.[1] && matchWithStep[2]) {
-    return { replayId: matchWithStep[1], stepId: decodeURIComponent(matchWithStep[2]) };
+interface ParsedReplayRoute {
+  replayId: string;
+  isOverview: boolean;
+  folderPath: string | null;
+  stepId: string | null;
+}
+
+function parseReplayPath(pathname: string): ParsedReplayRoute | null {
+  const overviewMatch = pathname.match(/^\/replays\/([^/]+)\/overview(?:\/(.+))?$/);
+  if (overviewMatch?.[1]) {
+    return {
+      replayId: overviewMatch[1],
+      isOverview: true,
+      folderPath: overviewMatch[2] ? decodeURIComponent(overviewMatch[2]) : null,
+      stepId: null,
+    };
   }
-  const matchReplayOnly = pathname.match(/^\/replays\/([^/]+)$/);
-  if (matchReplayOnly?.[1]) {
-    return { replayId: matchReplayOnly[1] };
+
+  const stepMatch = pathname.match(/^\/replays\/([^/]+)\/steps\/([^/]+)$/);
+  if (stepMatch?.[1] && stepMatch[2]) {
+    return {
+      replayId: stepMatch[1],
+      isOverview: false,
+      folderPath: null,
+      stepId: decodeURIComponent(stepMatch[2]),
+    };
   }
+
+  const replayMatch = pathname.match(/^\/replays\/([^/]+)$/);
+  if (replayMatch?.[1]) {
+    return {
+      replayId: replayMatch[1],
+      isOverview: false,
+      folderPath: null,
+      stepId: null,
+    };
+  }
+
   return null;
 }
 
@@ -55,12 +83,6 @@ export function App() {
     return replay && step ? replay.steps.indexOf(step) : 0;
   };
 
-  const syncOverviewFromHash = () => {
-    const { isOverview: nextIsOverview, folder } = parseOverviewHash();
-    setIsOverview(nextIsOverview);
-    setZoomedPath(folder);
-  };
-
   const refreshReplay = async (replayId: string, generation: number): Promise<void> => {
     const { replay } = await api<{ replay: Replay }>(`/api/replays/${replayId}`);
     if (generation === routeGeneration && currentReplay()?.id === replayId) {
@@ -75,16 +97,15 @@ export function App() {
     if (parsed) {
       const replayId = parsed.replayId;
       if (currentReplay()?.id === replayId) {
+        setIsOverview(parsed.isOverview);
+        setZoomedPath(parsed.folderPath);
         if (parsed.stepId) setActiveStepId(parsed.stepId);
-        syncOverviewFromHash();
         return;
       }
 
       eventSource?.close();
       eventSource = null;
       setCurrentReplay(null);
-      setIsOverview(false);
-      setZoomedPath(null);
       setSelectedFile(null);
 
       try {
@@ -92,20 +113,38 @@ export function App() {
         if (generation !== routeGeneration) return;
 
         setCurrentReplay(replay);
-        const resolvedStepId =
-          parsed.stepId && replay.steps.some((s) => s.stepId === parsed.stepId)
-            ? parsed.stepId
-            : (replay.steps[0]?.stepId ?? "");
 
-        setActiveStepId(resolvedStepId);
-        syncOverviewFromHash();
+        if (window.location.hash.startsWith("#overview")) {
+          const hashFolder = window.location.hash.startsWith("#overview:")
+            ? decodeURIComponent(window.location.hash.slice("#overview:".length))
+            : null;
+          const targetUrl = hashFolder
+            ? `/replays/${replayId}/overview/${encodeURI(hashFolder)}`
+            : `/replays/${replayId}/overview`;
+          window.history.replaceState({}, "", targetUrl);
+          setIsOverview(true);
+          setZoomedPath(hashFolder);
+          setActiveStepId(replay.steps[0]?.stepId ?? "");
+        } else if (parsed.isOverview) {
+          setIsOverview(true);
+          setZoomedPath(parsed.folderPath);
+          setActiveStepId(replay.steps[0]?.stepId ?? "");
+        } else {
+          setIsOverview(false);
+          setZoomedPath(null);
+          const resolvedStepId =
+            parsed.stepId && replay.steps.some((s) => s.stepId === parsed.stepId)
+              ? parsed.stepId
+              : (replay.steps[0]?.stepId ?? "");
 
-        if (!parsed.stepId && resolvedStepId) {
-          window.history.replaceState(
-            {},
-            "",
-            `/replays/${replayId}/steps/${encodeURIComponent(resolvedStepId)}${window.location.hash}`,
-          );
+          setActiveStepId(resolvedStepId);
+          if (!parsed.stepId && resolvedStepId) {
+            window.history.replaceState(
+              {},
+              "",
+              `/replays/${replayId}/steps/${encodeURIComponent(resolvedStepId)}`,
+            );
+          }
         }
 
         setRouteState({ view: "replay", replayId });
@@ -130,6 +169,9 @@ export function App() {
       eventSource?.close();
       eventSource = null;
       setCurrentReplay(null);
+      setIsOverview(false);
+      setZoomedPath(null);
+      setSelectedFile(null);
       try {
         const { replays: nextReplays } = await api<{ replays: ReplaySummary[] }>("/api/replays");
         if (generation !== routeGeneration) return;
@@ -152,24 +194,39 @@ export function App() {
   };
 
   const handleZoom = (path: string | null) => {
+    const replay = currentReplay();
+    if (!replay) return;
     setZoomedPath(path);
-    updateOverviewHash(path);
+    setIsOverview(true);
+    const targetUrl = path
+      ? `/replays/${replay.id}/overview/${path.split("/").map(encodeURIComponent).join("/")}`
+      : `/replays/${replay.id}/overview`;
+    window.history.pushState({}, "", targetUrl);
   };
 
   const handleToggleOverview = () => {
+    const replay = currentReplay();
+    if (!replay) return;
     const next = !isOverview();
     setIsOverview(next);
     setZoomedPath(null);
     setSelectedFile(null);
-    if (next) updateOverviewHash(null);
-    else clearOverviewHash();
+    if (next) {
+      window.history.pushState({}, "", `/replays/${replay.id}/overview`);
+    } else {
+      const stepId = activeStepId() || replay.steps[0]?.stepId || "";
+      window.history.pushState({}, "", `/replays/${replay.id}/steps/${encodeURIComponent(stepId)}`);
+    }
   };
 
   const handleBackToReview = () => {
+    const replay = currentReplay();
+    if (!replay) return;
     setIsOverview(false);
     setZoomedPath(null);
     setSelectedFile(null);
-    clearOverviewHash();
+    const stepId = activeStepId() || replay.steps[0]?.stepId || "";
+    window.history.pushState({}, "", `/replays/${replay.id}/steps/${encodeURIComponent(stepId)}`);
   };
 
   const mutateReplay = async (
@@ -214,7 +271,6 @@ export function App() {
   const selectReviewStep = (stepId: string) => {
     setIsOverview(false);
     setZoomedPath(null);
-    clearOverviewHash();
     const replay = currentReplay();
     if (!replay) return;
     setActiveStepId(stepId);
@@ -266,10 +322,11 @@ export function App() {
         const replay = currentReplay();
         const parsed = parseReplayPath(window.location.pathname);
         if (replay && parsed && parsed.replayId === replay.id) {
+          setIsOverview(parsed.isOverview);
+          setZoomedPath(parsed.folderPath);
           if (parsed.stepId && parsed.stepId !== activeStepId()) {
             setActiveStepId(parsed.stepId);
           }
-          syncOverviewFromHash();
         } else {
           void route();
         }
@@ -287,8 +344,14 @@ export function App() {
           }
           if (isOverview()) {
             event.preventDefault();
-            if (zoomedPath() !== null) handleZoom(null);
-            else handleBackToReview();
+            if (zoomedPath() !== null) {
+              const current = zoomedPath()!;
+              const lastSlash = current.lastIndexOf("/");
+              const parentPath = lastSlash !== -1 ? current.slice(0, lastSlash) : null;
+              handleZoom(parentPath);
+            } else {
+              handleBackToReview();
+            }
             return;
           }
         }
