@@ -321,14 +321,6 @@ export function getChildBranches(node: TreeNode): DirectoryBranch[] {
     });
   }
 
-  if (node.files.length > 0) {
-    result.push({
-      dirPath: node.fullPath || "root",
-      node,
-      files: [...node.files],
-    });
-  }
-
   return result;
 }
 

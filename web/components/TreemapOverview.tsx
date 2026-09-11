@@ -42,104 +42,122 @@ function findNode(node: DirectoryBranch["node"], path: string): DirectoryBranch[
   return current;
 }
 
+type ContainerChild =
+  { kind: "dir"; branch: DirectoryBranch } | { kind: "file"; file: FileChurnMetric };
+
+function FileTile(props: { file: FileChurnMetric; fileRect: Rect }) {
+  return (
+    <div
+      class="treemap-file-tile"
+      style={{
+        left: `calc(${props.fileRect.x.toFixed(2)}% + 1.5px)`,
+        top: `calc(${props.fileRect.y.toFixed(2)}% + 1.5px)`,
+        width: `calc(${props.fileRect.w.toFixed(2)}% - 3px)`,
+        height: `calc(${props.fileRect.h.toFixed(2)}% - 3px)`,
+        background: props.file.color,
+        border: `1px solid ${props.file.borderColor}`,
+      }}
+      title={`${props.file.filePath}\n+${props.file.additions} / -${props.file.deletions} lines\nSize: max(${props.file.additions}, ${props.file.deletions}) = ${props.file.size}\nBalance: ${props.file.balanceTag}`}
+    >
+      <div class="tile-content">
+        <div class="treemap-file-name">{props.file.fileName}</div>
+        <div class="treemap-file-meta">
+          <span>
+            +{props.file.additions} / -{props.file.deletions}
+          </span>
+          <span>size: {props.file.size}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BranchContent(props: BranchContentProps) {
   const effectiveNode = () => compactToBranchingNode(props.branch.node);
   const subBranches = () => getChildBranches(effectiveNode());
-  const shouldSplitBranches = () => props.depth < 3 && subBranches().length > 1;
-  const subLayout = () => {
-    const items: TreemapItem<DirectoryBranch>[] = subBranches().map((branch) => ({
-      id: branch.dirPath,
-      weight: branch.files.reduce((sum, file) => sum + file.size, 0),
-      data: branch,
-    }));
-    return squarify(items, { x: 0, y: 0, w: props.pixelRect.w, h: props.pixelRect.h });
-  };
-  const fileLayout = () => {
-    const items: TreemapItem<FileChurnMetric>[] = props.branch.files.map((file) => ({
-      id: file.filePath,
-      weight: file.size,
-      data: file,
-    }));
-    return squarify(items, { x: 0, y: 0, w: props.pixelRect.w, h: props.pixelRect.h });
-  };
+
+  const containerChildren = createMemo<TreemapItem<ContainerChild>[]>(() => {
+    const node = effectiveNode();
+    const subs = subBranches();
+    const directs = node.files;
+
+    if (props.depth >= 3 || subs.length === 0) {
+      return props.branch.files.map((file) => ({
+        id: file.filePath,
+        weight: file.size,
+        data: { kind: "file" as const, file },
+      }));
+    }
+
+    const items: TreemapItem<ContainerChild>[] = [];
+    for (const sub of subs) {
+      items.push({
+        id: sub.dirPath,
+        weight: sub.files.reduce((sum, f) => sum + f.size, 0),
+        data: { kind: "dir" as const, branch: sub },
+      });
+    }
+    for (const file of directs) {
+      items.push({
+        id: file.filePath,
+        weight: file.size,
+        data: { kind: "file" as const, file },
+      });
+    }
+    return items;
+  });
+
+  const layout = createMemo(() =>
+    squarify(containerChildren(), { x: 0, y: 0, w: props.pixelRect.w, h: props.pixelRect.h }),
+  );
 
   return (
     <div class={props.depth === 1 ? "treemap-dir-content" : "treemap-sub-content"}>
-      <Show
-        when={shouldSplitBranches()}
-        fallback={
-          <For each={fileLayout()}>
-            {(fileRect) => {
-              const file = fileRect.item.data;
-              return (
-                <div
-                  class="treemap-file-tile"
-                  style={{
-                    left: `calc(${fileRect.x.toFixed(2)}% + 1.5px)`,
-                    top: `calc(${fileRect.y.toFixed(2)}% + 1.5px)`,
-                    width: `calc(${fileRect.w.toFixed(2)}% - 3px)`,
-                    height: `calc(${fileRect.h.toFixed(2)}% - 3px)`,
-                    background: file.color,
-                    border: `1px solid ${file.borderColor}`,
-                  }}
-                  title={`${file.filePath}\n+${file.additions} / -${file.deletions} lines\nSize: max(${file.additions}, ${file.deletions}) = ${file.size}\nBalance: ${file.balanceTag}`}
-                >
-                  <div class="tile-content">
-                    <div class="treemap-file-name">{file.fileName}</div>
-                    <div class="treemap-file-meta">
-                      <span>
-                        +{file.additions} / -{file.deletions}
-                      </span>
-                      <span>size: {file.size}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            }}
-          </For>
-        }
-      >
-        <For each={subLayout()}>
-          {(subRect) => {
-            const sub = subRect.item.data;
-            const prefix = props.branch.dirPath ? `${props.branch.dirPath}/` : "";
-            const shortName = sub.dirPath.startsWith(prefix)
-              ? sub.dirPath.slice(prefix.length)
-              : sub.dirPath;
-            const pixelRect = {
-              w: (subRect.w / 100) * props.pixelRect.w,
-              h: (subRect.h / 100) * props.pixelRect.h,
-            };
+      <For each={layout()}>
+        {(itemRect) => {
+          const item = itemRect.item.data;
+          if (item.kind === "file") {
+            return <FileTile file={item.file} fileRect={itemRect} />;
+          }
 
-            return (
+          const sub = item.branch;
+          const prefix = props.branch.dirPath ? `${props.branch.dirPath}/` : "";
+          const shortName = sub.dirPath.startsWith(prefix)
+            ? sub.dirPath.slice(prefix.length)
+            : sub.dirPath;
+          const pixelRect = {
+            w: (itemRect.w / 100) * props.pixelRect.w,
+            h: (itemRect.h / 100) * props.pixelRect.h,
+          };
+
+          return (
+            <div
+              class="treemap-sub-box"
+              style={{
+                left: `calc(${itemRect.x.toFixed(2)}% + 2px)`,
+                top: `calc(${itemRect.y.toFixed(2)}% + 2px)`,
+                width: `calc(${itemRect.w.toFixed(2)}% - 4px)`,
+                height: `calc(${itemRect.h.toFixed(2)}% - 4px)`,
+              }}
+            >
               <div
-                class="treemap-sub-box"
-                style={{
-                  left: `calc(${subRect.x.toFixed(2)}% + 2px)`,
-                  top: `calc(${subRect.y.toFixed(2)}% + 2px)`,
-                  width: `calc(${subRect.w.toFixed(2)}% - 4px)`,
-                  height: `calc(${subRect.h.toFixed(2)}% - 4px)`,
-                }}
+                class="treemap-sub-header"
+                title={`Click to zoom into ${sub.dirPath}`}
+                onClick={() => props.onZoom(sub.dirPath)}
               >
-                <div
-                  class="treemap-sub-header"
-                  title={`Click to zoom into ${sub.dirPath}`}
-                  onClick={() => props.onZoom(sub.dirPath)}
-                >
-                  <span>📁 {shortName}</span>
-                  <span class="dir-loc">{subRect.item.weight} LOC · Zoom ↗</span>
-                </div>
-                <BranchContent
-                  branch={sub}
-                  pixelRect={pixelRect}
-                  depth={props.depth + 1}
-                  onZoom={props.onZoom}
-                />
+                <span>📁 {shortName}</span>
+                <span class="dir-loc">{itemRect.item.weight} LOC · Zoom ↗</span>
               </div>
-            );
-          }}
-        </For>
-      </Show>
+              <BranchContent
+                branch={sub}
+                pixelRect={pixelRect}
+                depth={props.depth + 1}
+                onZoom={props.onZoom}
+              />
+            </div>
+          );
+        }}
+      </For>
     </div>
   );
 }
