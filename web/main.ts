@@ -16,6 +16,112 @@ let isOverviewActive = false;
 let zoomedDirPath: string | null = null;
 let routeGeneration = 0;
 let mutationQueue: Promise<unknown> = Promise.resolve();
+let renderReplayCounter = 0;
+
+interface ElementRectSnapshot {
+  tag: string;
+  className: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scrollTop: number;
+  scrollHeight: number;
+}
+
+function snapshotRect(selector: string): ElementRectSnapshot | null {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  return {
+    tag: el.tagName,
+    className: el.className,
+    x: Math.round(rect.x * 10) / 10,
+    y: Math.round(rect.y * 10) / 10,
+    width: Math.round(rect.width * 10) / 10,
+    height: Math.round(rect.height * 10) / 10,
+    scrollTop: Math.round(el.scrollTop),
+    scrollHeight: Math.round(el.scrollHeight),
+  };
+}
+
+function captureLayoutSnapshot() {
+  return {
+    windowScrollY: Math.round(window.scrollY),
+    windowScrollX: Math.round(window.scrollX),
+    workspace: snapshotRect(".workspace"),
+    stepRail: snapshotRect(".step-rail"),
+    stepList: snapshotRect(".step-list"),
+    reviewMain: snapshotRect(".review-main"),
+    overviewScroll: snapshotRect(".overview-scroll"),
+    treemapHero: snapshotRect(".treemap-hero"),
+    breadcrumbBar: snapshotRect(".treemap-breadcrumb-bar"),
+    spectrumLegend: snapshotRect(".spectrum-legend-card"),
+    treemapCanvas: snapshotRect(".treemap-canvas"),
+  };
+}
+
+function diffSnapshots(
+  prev: ReturnType<typeof captureLayoutSnapshot>,
+  next: ReturnType<typeof captureLayoutSnapshot>,
+) {
+  const differences: Record<string, unknown> = {};
+  for (const key of Object.keys(prev) as (keyof typeof prev)[]) {
+    const p = prev[key];
+    const n = next[key];
+    if (JSON.stringify(p) !== JSON.stringify(n)) {
+      differences[key] = { previous: p, next: n };
+    }
+  }
+  return differences;
+}
+
+if (typeof window !== "undefined" && "PerformanceObserver" in window) {
+  try {
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const shift = entry as PerformanceEntry & {
+          value: number;
+          hadRecentInput: boolean;
+          sources?: Array<{
+            node?: Node;
+            previousRect: DOMRectReadOnly;
+            currentRect: DOMRectReadOnly;
+          }>;
+        };
+        console.warn("[DEBUG][LayoutShift PerformanceEntry]", {
+          value: Number(shift.value.toFixed(5)),
+          hadRecentInput: shift.hadRecentInput,
+          sources: shift.sources?.map((s) => ({
+            node:
+              s.node instanceof HTMLElement
+                ? `${s.node.tagName.toLowerCase()}.${s.node.className}`
+                : String(s.node),
+            previousRect: s.previousRect
+              ? {
+                  x: Math.round(s.previousRect.x * 10) / 10,
+                  y: Math.round(s.previousRect.y * 10) / 10,
+                  w: Math.round(s.previousRect.width * 10) / 10,
+                  h: Math.round(s.previousRect.height * 10) / 10,
+                }
+              : null,
+            currentRect: s.currentRect
+              ? {
+                  x: Math.round(s.currentRect.x * 10) / 10,
+                  y: Math.round(s.currentRect.y * 10) / 10,
+                  w: Math.round(s.currentRect.width * 10) / 10,
+                  h: Math.round(s.currentRect.height * 10) / 10,
+                }
+              : null,
+          })),
+        });
+      }
+    });
+    observer.observe({ type: "layout-shift", buffered: true });
+  } catch (err) {
+    console.error("[DEBUG] Could not initialize layout-shift observer:", err);
+  }
+}
 
 void route();
 
@@ -35,10 +141,17 @@ window.addEventListener("popstate", () => void route());
 window.addEventListener("hashchange", () => {
   if (currentReplay) {
     const { isOverview, folder } = parseOverviewHash();
+    console.log("[DEBUG] hashchange triggered:", {
+      currentOverview: isOverviewActive,
+      targetOverview: isOverview,
+      currentFolder: zoomedDirPath,
+      targetFolder: folder,
+      hash: window.location.hash,
+    });
     if (isOverviewActive !== isOverview || zoomedDirPath !== folder) {
       isOverviewActive = isOverview;
       zoomedDirPath = folder;
-      renderReplay(currentReplay);
+      renderReplay(currentReplay, "hashchange");
     }
   }
 });
@@ -48,16 +161,18 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && currentReplay && isOverviewActive) {
     if (zoomedDirPath !== null) {
       event.preventDefault();
+      console.log("[DEBUG] Escape pressed -> zoom out to root");
       zoomedDirPath = null;
       window.location.hash = "overview";
-      renderReplay(currentReplay);
+      renderReplay(currentReplay, "escape-zoom-out");
     } else {
       event.preventDefault();
+      console.log("[DEBUG] Escape pressed -> exit overview to review");
       isOverviewActive = false;
       if (window.location.hash.startsWith("#overview")) {
         window.history.replaceState({}, "", window.location.pathname);
       }
-      renderReplay(currentReplay);
+      renderReplay(currentReplay, "escape-exit-overview");
     }
     return;
   }
@@ -69,7 +184,7 @@ window.addEventListener("keydown", (event) => {
       if (window.location.hash.startsWith("#overview")) {
         window.history.replaceState({}, "", window.location.pathname);
       }
-      renderReplay(currentReplay);
+      renderReplay(currentReplay, "space-exit-overview");
     } else {
       void approveAndAdvance();
     }
@@ -90,7 +205,7 @@ window.addEventListener("keydown", (event) => {
     } else if (window.location.hash.startsWith("#overview")) {
       window.history.replaceState({}, "", window.location.pathname);
     }
-    renderReplay(currentReplay);
+    renderReplay(currentReplay, "key-m-toggle");
   }
   if (
     event.key === "z" &&
@@ -477,17 +592,19 @@ function renderOverviewMain(replay: Replay): HTMLElement {
     breadcrumbBar = element("nav", { className: "treemap-breadcrumb-bar" }, [
       element("div", { className: "breadcrumb-path" }, [
         element("button", { className: "breadcrumb-btn", text: "📁 All Folders" }, [], () => {
+          console.log("[DEBUG] Zooming out to root via breadcrumb link");
           zoomedDirPath = null;
           window.location.hash = "overview";
-          renderReplay(replay);
+          renderReplay(replay, "breadcrumb-root-click");
         }),
         element("span", { className: "breadcrumb-sep", text: "/" }),
         element("span", { className: "breadcrumb-active", text: currentZoom }),
       ]),
       button("← Back to all folders (Esc)", "breadcrumb-back-btn", () => {
+        console.log("[DEBUG] Zooming out to root via back button");
         zoomedDirPath = null;
         window.location.hash = "overview";
-        renderReplay(replay);
+        renderReplay(replay, "breadcrumb-back-button");
       }),
     ]);
 
@@ -581,9 +698,10 @@ function renderOverviewMain(replay: Replay): HTMLElement {
           }),
         ],
         () => {
+          console.log("[DEBUG] Zooming into folder:", dirRect.item.data.dirPath);
           zoomedDirPath = dirRect.item.data.dirPath;
           window.location.hash = `overview:${encodeURIComponent(zoomedDirPath)}`;
-          renderReplay(replay);
+          renderReplay(replay, "zoom-folder-click");
         },
       );
 
@@ -642,12 +760,13 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       ]),
       element("div", { className: "header-actions" }, [
         button("Back to review", "button primary", () => {
+          console.log("[DEBUG] Exiting overview via Back to review button");
           isOverviewActive = false;
           zoomedDirPath = null;
           if (window.location.hash.startsWith("#overview")) {
             window.history.replaceState({}, "", window.location.pathname);
           }
-          renderReplay(replay);
+          renderReplay(replay, "back-to-review-button");
         }),
       ]),
     ]),
@@ -706,7 +825,18 @@ function renderOverviewMain(replay: Replay): HTMLElement {
   ]);
 }
 
-function renderReplay(replay: Replay): void {
+function renderReplay(replay: Replay, reason = "render"): void {
+  const renderId = ++renderReplayCounter;
+  const t0 = performance.now();
+  const preSnapshot = captureLayoutSnapshot();
+
+  console.log(`[DEBUG][renderReplay #${renderId}] START (reason: ${reason})`, {
+    isOverviewActive,
+    zoomedDirPath,
+    hash: window.location.hash,
+    preSnapshot,
+  });
+
   const activeStep =
     replay.steps.find((step) => step.stepId === replay.state.activeStepId) ?? replay.steps[0]!;
   const activeIndex = replay.steps.indexOf(activeStep);
@@ -756,6 +886,22 @@ function renderReplay(replay: Replay): void {
       renderNotes(replay, activeStep),
     ]),
   );
+
+  const tSync = performance.now();
+  const postSyncSnapshot = captureLayoutSnapshot();
+  const syncDiff = diffSnapshots(preSnapshot, postSyncSnapshot);
+  console.log(`[DEBUG][renderReplay #${renderId}] DOM REPLACED (${(tSync - t0).toFixed(2)}ms)`, {
+    syncDiff: Object.keys(syncDiff).length ? syncDiff : "NO SYNC RECT SHIFT",
+  });
+
+  requestAnimationFrame(() => {
+    const tRaf = performance.now();
+    const rafSnapshot = captureLayoutSnapshot();
+    const rafDiff = diffSnapshots(postSyncSnapshot, rafSnapshot);
+    console.log(`[DEBUG][renderReplay #${renderId}] rAF FRAME (${(tRaf - t0).toFixed(2)}ms)`, {
+      rafDiff: Object.keys(rafDiff).length ? rafDiff : "NO RAF RECT SHIFT",
+    });
+  });
 }
 
 function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number): HTMLElement {
@@ -775,10 +921,11 @@ function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number
       ]),
     ],
     () => {
+      console.log("[DEBUG] Clicked rootRow (Stack Overview in sidebar)");
       isOverviewActive = true;
       zoomedDirPath = null;
       window.location.hash = "overview";
-      renderReplay(replay);
+      renderReplay(replay, "root-row-click");
     },
   );
 
