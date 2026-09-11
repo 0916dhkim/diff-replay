@@ -19,12 +19,25 @@ let mutationQueue: Promise<unknown> = Promise.resolve();
 
 void route();
 
+function parseOverviewHash(): { isOverview: boolean; folder: string | null } {
+  const hash = window.location.hash;
+  if (!hash.startsWith("#overview")) return { isOverview: false, folder: null };
+  if (hash === "#overview") return { isOverview: true, folder: null };
+  const colonIdx = hash.indexOf(":");
+  if (colonIdx >= 0) {
+    const rawFolder = decodeURIComponent(hash.slice(colonIdx + 1));
+    return { isOverview: true, folder: rawFolder || null };
+  }
+  return { isOverview: true, folder: null };
+}
+
 window.addEventListener("popstate", () => void route());
 window.addEventListener("hashchange", () => {
   if (currentReplay) {
-    const shouldBeOverview = window.location.hash === "#overview";
-    if (isOverviewActive !== shouldBeOverview) {
-      isOverviewActive = shouldBeOverview;
+    const { isOverview, folder } = parseOverviewHash();
+    if (isOverviewActive !== isOverview || zoomedDirPath !== folder) {
+      isOverviewActive = isOverview;
+      zoomedDirPath = folder;
       renderReplay(currentReplay);
     }
   }
@@ -36,11 +49,12 @@ window.addEventListener("keydown", (event) => {
     if (zoomedDirPath !== null) {
       event.preventDefault();
       zoomedDirPath = null;
+      window.location.hash = "overview";
       renderReplay(currentReplay);
     } else {
       event.preventDefault();
       isOverviewActive = false;
-      if (window.location.hash === "#overview") {
+      if (window.location.hash.startsWith("#overview")) {
         window.history.replaceState({}, "", window.location.pathname);
       }
       renderReplay(currentReplay);
@@ -52,7 +66,7 @@ window.addEventListener("keydown", (event) => {
     if (isOverviewActive) {
       isOverviewActive = false;
       zoomedDirPath = null;
-      if (window.location.hash === "#overview") {
+      if (window.location.hash.startsWith("#overview")) {
         window.history.replaceState({}, "", window.location.pathname);
       }
       renderReplay(currentReplay);
@@ -73,7 +87,7 @@ window.addEventListener("keydown", (event) => {
     zoomedDirPath = null;
     if (isOverviewActive) {
       window.location.hash = "overview";
-    } else if (window.location.hash === "#overview") {
+    } else if (window.location.hash.startsWith("#overview")) {
       window.history.replaceState({}, "", window.location.pathname);
     }
     renderReplay(currentReplay);
@@ -174,7 +188,9 @@ async function loadReplay(replayId: string, generation: number): Promise<void> {
   const { replay } = await api<{ replay: Replay }>(`/api/replays/${replayId}`);
   if (generation !== routeGeneration) return;
   currentReplay = replay;
-  isOverviewActive = window.location.hash === "#overview";
+  const { isOverview, folder } = parseOverviewHash();
+  isOverviewActive = isOverview;
+  zoomedDirPath = folder;
   renderReplay(replay);
   eventSource = new EventSource(`/api/replays/${replayId}/events`);
   eventSource.addEventListener("message", (event) => {
@@ -462,6 +478,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       element("div", { className: "breadcrumb-path" }, [
         element("button", { className: "breadcrumb-btn", text: "📁 All Folders" }, [], () => {
           zoomedDirPath = null;
+          window.location.hash = "overview";
           renderReplay(replay);
         }),
         element("span", { className: "breadcrumb-sep", text: "/" }),
@@ -469,6 +486,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       ]),
       button("← Back to all folders (Esc)", "button secondary", () => {
         zoomedDirPath = null;
+        window.location.hash = "overview";
         renderReplay(replay);
       }),
     ]);
@@ -564,6 +582,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         ],
         () => {
           zoomedDirPath = dirRect.item.data.dirPath;
+          window.location.hash = `overview:${encodeURIComponent(zoomedDirPath)}`;
           renderReplay(replay);
         },
       );
@@ -625,7 +644,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         button("Back to review", "button primary", () => {
           isOverviewActive = false;
           zoomedDirPath = null;
-          if (window.location.hash === "#overview") {
+          if (window.location.hash.startsWith("#overview")) {
             window.history.replaceState({}, "", window.location.pathname);
           }
           renderReplay(replay);
@@ -758,6 +777,7 @@ function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number
     ],
     () => {
       isOverviewActive = true;
+      zoomedDirPath = null;
       window.location.hash = "overview";
       renderReplay(replay);
     },
@@ -802,7 +822,8 @@ function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number
       ],
       () => {
         isOverviewActive = false;
-        if (window.location.hash === "#overview") {
+        zoomedDirPath = null;
+        if (window.location.hash.startsWith("#overview")) {
           window.history.replaceState({}, "", window.location.pathname);
         }
         void selectStep(step.stepId);
