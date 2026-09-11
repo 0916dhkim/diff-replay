@@ -606,31 +606,121 @@ function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
   return result;
 }
 
+interface TreeNode {
+  name: string;
+  fullPath: string;
+  files: FileChurnMetric[];
+  children: Map<string, TreeNode>;
+}
+
+function buildMetricTree(files: FileChurnMetric[]): TreeNode {
+  const root: TreeNode = { name: "root", fullPath: "", files: [], children: new Map() };
+
+  for (const f of files) {
+    const parts = f.filePath.split("/");
+    let curr = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i]!;
+      if (!curr.children.has(part)) {
+        const nextPath = curr.fullPath ? `${curr.fullPath}/${part}` : part;
+        curr.children.set(part, { name: part, fullPath: nextPath, files: [], children: new Map() });
+      }
+      curr = curr.children.get(part)!;
+    }
+    curr.files.push(f);
+  }
+
+  return root;
+}
+
+function collectDescendantFiles(n: TreeNode): FileChurnMetric[] {
+  const list = [...n.files];
+  for (const child of n.children.values()) {
+    list.push(...collectDescendantFiles(child));
+  }
+  return list;
+}
+
+function getChildBranches(node: TreeNode): { dirPath: string; files: FileChurnMetric[] }[] {
+  const result: { dirPath: string; files: FileChurnMetric[] }[] = [];
+
+  for (const child of node.children.values()) {
+    let curr = child;
+    while (curr.files.length === 0 && curr.children.size === 1) {
+      curr = Array.from(curr.children.values())[0]!;
+    }
+    result.push({
+      dirPath: curr.fullPath,
+      files: collectDescendantFiles(child),
+    });
+  }
+
+  if (node.files.length > 0) {
+    result.push({
+      dirPath: node.fullPath || "root",
+      files: [...node.files],
+    });
+  }
+
+  return result;
+}
+
 function renderOverviewMain(replay: Replay): HTMLElement {
   const fileMetrics = computeReplayMetrics(replay.steps);
   const totalMaxLoc = fileMetrics.reduce((sum, f) => sum + f.size, 0);
   const totalAdditions = fileMetrics.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = fileMetrics.reduce((sum, f) => sum + f.deletions, 0);
 
+  const tree = buildMetricTree(fileMetrics);
+
   const canvas = element("div", { className: "treemap-canvas" });
   let breadcrumbBar: HTMLElement;
+  let activeFiles = fileMetrics;
 
   if (zoomedDirPath !== null) {
     const currentZoom = zoomedDirPath;
-    const zoomedFiles = fileMetrics.filter((f) => f.dirPath === currentZoom);
-    const zoomedWeight = zoomedFiles.reduce((sum, f) => sum + f.size, 0);
+    let targetNode: TreeNode | null = tree;
+    for (const part of currentZoom.split("/")) {
+      targetNode = targetNode?.children.get(part) ?? null;
+    }
+
+    activeFiles = targetNode
+      ? collectDescendantFiles(targetNode)
+      : fileMetrics.filter((f) => f.filePath.startsWith(currentZoom));
+    const zoomedWeight = activeFiles.reduce((sum, f) => sum + f.size, 0);
+
+    const breadcrumbSegments: (HTMLElement | string)[] = [
+      element("button", { className: "breadcrumb-btn", text: "📁 All Folders" }, [], () => {
+        console.log("[DEBUG] Zooming out to root via breadcrumb link");
+        zoomedDirPath = null;
+        updateOverviewHash(null);
+        renderReplay(replay, "breadcrumb-root-click");
+      }),
+    ];
+
+    const parts = currentZoom.split("/");
+    let accum = "";
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]!;
+      accum = accum ? `${accum}/${part}` : part;
+      breadcrumbSegments.push(element("span", { className: "breadcrumb-sep", text: "/" }));
+      if (i === parts.length - 1) {
+        breadcrumbSegments.push(element("span", { className: "breadcrumb-active", text: part }));
+      } else {
+        const targetAccum = accum;
+        breadcrumbSegments.push(
+          element("button", { className: "breadcrumb-btn", text: part }, [], () => {
+            console.log("[DEBUG] Zooming to ancestor folder:", targetAccum);
+            zoomedDirPath = targetAccum;
+            updateOverviewHash(zoomedDirPath);
+            renderReplay(replay, "breadcrumb-ancestor-click");
+          }),
+        );
+      }
+    }
 
     breadcrumbBar = element("nav", { className: "treemap-breadcrumb-bar" }, [
-      element("div", { className: "breadcrumb-path" }, [
-        element("button", { className: "breadcrumb-btn", text: "📁 All Folders" }, [], () => {
-          console.log("[DEBUG] Zooming out to root via breadcrumb link");
-          zoomedDirPath = null;
-          updateOverviewHash(null);
-          renderReplay(replay, "breadcrumb-root-click");
-        }),
-        element("span", { className: "breadcrumb-sep", text: "/" }),
-        element("span", { className: "breadcrumb-active", text: currentZoom }),
-      ]),
+      element("div", { className: "breadcrumb-path" }, breadcrumbSegments),
       button("← Back to all folders (Esc)", "breadcrumb-back-btn", () => {
         console.log("[DEBUG] Zooming out to root via back button");
         zoomedDirPath = null;
@@ -639,51 +729,138 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       }),
     ]);
 
-    const dirBox = element("div", {
-      className: "treemap-dir-box",
-      style: "left: 3px; top: 3px; width: calc(100% - 6px); height: calc(100% - 6px);",
-    });
+    const subBranches = targetNode ? getChildBranches(targetNode) : [];
 
-    const dirHeader = element("div", { className: "treemap-dir-header", title: currentZoom }, [
-      element("span", { text: `📁 ${currentZoom}` }),
-      element("span", { className: "dir-loc", text: `${zoomedWeight} LOC · Zoomed View` }),
-    ]);
+    if (subBranches.length > 1) {
+      const dirItems: TreemapItem<{ dirPath: string; files: FileChurnMetric[] }>[] =
+        subBranches.map((b) => ({
+          id: b.dirPath,
+          weight: b.files.reduce((sum, f) => sum + f.size, 0),
+          data: b,
+        }));
 
-    const dirContent = element("div", { className: "treemap-dir-content" });
+      const dirLayout = squarify(dirItems, { x: 0, y: 0, w: 100, h: 100 });
 
-    const fileItems: TreemapItem<FileChurnMetric>[] = zoomedFiles.map((f) => ({
-      id: f.filePath,
-      weight: f.size,
-      data: f,
-    }));
+      for (const dirRect of dirLayout) {
+        const dirBox = element("div", {
+          className: "treemap-dir-box",
+          style: `left: calc(${dirRect.x.toFixed(2)}% + 3px); top: calc(${dirRect.y.toFixed(2)}% + 3px); width: calc(${dirRect.w.toFixed(2)}% - 6px); height: calc(${dirRect.h.toFixed(2)}% - 6px);`,
+        });
 
-    const fileLayout = squarify(fileItems, { x: 0, y: 0, w: 100, h: 100 });
+        const shortName = dirRect.item.data.dirPath.startsWith(currentZoom + "/")
+          ? dirRect.item.data.dirPath.slice(currentZoom.length + 1)
+          : dirRect.item.data.dirPath;
 
-    for (const fileRect of fileLayout) {
-      const file = fileRect.item.data;
-      const tile = element(
-        "div",
-        {
-          className: "treemap-file-tile",
-          style: `left: calc(${fileRect.x.toFixed(2)}% + 2px); top: calc(${fileRect.y.toFixed(2)}% + 2px); width: calc(${fileRect.w.toFixed(2)}% - 4px); height: calc(${fileRect.h.toFixed(2)}% - 4px); background: ${file.color}; border: 1px solid ${file.borderColor};`,
-        },
-        [
-          element("div", { className: "treemap-file-name", text: file.fileName }),
-          element("div", { className: "treemap-file-meta" }, [
-            element("span", { text: `+${file.additions} / -${file.deletions}` }),
-            element("span", { text: `size: ${file.size} (${file.balanceTag})` }),
-          ]),
-        ],
-      );
+        const dirHeader = element(
+          "div",
+          {
+            className: "treemap-dir-header is-clickable",
+            title: `Click to zoom into ${dirRect.item.data.dirPath}`,
+          },
+          [
+            element("span", { text: `📁 ${shortName}` }),
+            element("span", {
+              className: "dir-loc",
+              text: `${dirRect.item.weight} LOC · Zoom ↗`,
+            }),
+          ],
+          () => {
+            console.log("[DEBUG] Zooming into subfolder:", dirRect.item.data.dirPath);
+            isOverviewActive = true;
+            zoomedDirPath = dirRect.item.data.dirPath;
+            updateOverviewHash(zoomedDirPath);
+            renderReplay(replay, "zoom-subfolder-click");
+          },
+        );
 
-      tile.title = `${file.filePath}\n+${file.additions} / -${file.deletions} lines\nSize: max(${file.additions}, ${file.deletions}) = ${file.size}\nBalance: ${file.balanceTag}`;
-      dirContent.append(tile);
+        const dirContent = element("div", { className: "treemap-dir-content" });
+
+        const fileItems: TreemapItem<FileChurnMetric>[] = dirRect.item.data.files.map((f) => ({
+          id: f.filePath,
+          weight: f.size,
+          data: f,
+        }));
+
+        const fileLayout = squarify(fileItems, { x: 0, y: 0, w: 100, h: 100 });
+
+        for (const fileRect of fileLayout) {
+          const file = fileRect.item.data;
+          const tile = element(
+            "div",
+            {
+              className: "treemap-file-tile",
+              style: `left: calc(${fileRect.x.toFixed(2)}% + 2px); top: calc(${fileRect.y.toFixed(2)}% + 2px); width: calc(${fileRect.w.toFixed(2)}% - 4px); height: calc(${fileRect.h.toFixed(2)}% - 4px); background: ${file.color}; border: 1px solid ${file.borderColor};`,
+            },
+            [
+              element("div", { className: "treemap-file-name", text: file.fileName }),
+              element("div", { className: "treemap-file-meta" }, [
+                element("span", { text: `+${file.additions} / -${file.deletions}` }),
+                element("span", { text: `size: ${file.size}` }),
+              ]),
+            ],
+          );
+
+          tile.title = `${file.filePath}\n+${file.additions} / -${file.deletions} lines\nSize: max(${file.additions}, ${file.deletions}) = ${file.size}\nBalance: ${file.balanceTag}`;
+          dirContent.append(tile);
+        }
+
+        dirBox.append(dirHeader, dirContent);
+        canvas.append(dirBox);
+      }
+    } else {
+      const dirBox = element("div", {
+        className: "treemap-dir-box",
+        style: "left: 3px; top: 3px; width: calc(100% - 6px); height: calc(100% - 6px);",
+      });
+
+      const dirHeader = element("div", { className: "treemap-dir-header", title: currentZoom }, [
+        element("span", { text: `📁 ${currentZoom}` }),
+        element("span", { className: "dir-loc", text: `${zoomedWeight} LOC · Zoomed View` }),
+      ]);
+
+      const dirContent = element("div", { className: "treemap-dir-content" });
+
+      const fileItems: TreemapItem<FileChurnMetric>[] = activeFiles.map((f) => ({
+        id: f.filePath,
+        weight: f.size,
+        data: f,
+      }));
+
+      const fileLayout = squarify(fileItems, { x: 0, y: 0, w: 100, h: 100 });
+
+      for (const fileRect of fileLayout) {
+        const file = fileRect.item.data;
+        const tile = element(
+          "div",
+          {
+            className: "treemap-file-tile",
+            style: `left: calc(${fileRect.x.toFixed(2)}% + 2px); top: calc(${fileRect.y.toFixed(2)}% + 2px); width: calc(${fileRect.w.toFixed(2)}% - 4px); height: calc(${fileRect.h.toFixed(2)}% - 4px); background: ${file.color}; border: 1px solid ${file.borderColor};`,
+          },
+          [
+            element("div", { className: "treemap-file-name", text: file.fileName }),
+            element("div", { className: "treemap-file-meta" }, [
+              element("span", { text: `+${file.additions} / -${file.deletions}` }),
+              element("span", { text: `size: ${file.size}` }),
+            ]),
+          ],
+        );
+
+        tile.title = `${file.filePath}\n+${file.additions} / -${file.deletions} lines\nSize: max(${file.additions}, ${file.deletions}) = ${file.size}\nBalance: ${file.balanceTag}`;
+        dirContent.append(tile);
+      }
+
+      dirBox.append(dirHeader, dirContent);
+      canvas.append(dirBox);
+    }
+  } else {
+    // Root View: Compact root if tree has single-child root with no direct files
+    let displayRoot = tree;
+    while (displayRoot.files.length === 0 && displayRoot.children.size === 1) {
+      displayRoot = Array.from(displayRoot.children.values())[0]!;
     }
 
-    dirBox.append(dirHeader, dirContent);
-    canvas.append(dirBox);
-  } else {
-    // Root View
+    const dirBranches = getChildBranches(displayRoot);
+
     breadcrumbBar = element("nav", { className: "treemap-breadcrumb-bar" }, [
       element("div", { className: "breadcrumb-path" }, [
         element("span", { className: "breadcrumb-active", text: "📁 All Folders (Root)" }),
@@ -694,18 +871,13 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       ]),
     ]);
 
-    const dirMap = new Map<string, FileChurnMetric[]>();
-    for (const file of fileMetrics) {
-      const list = dirMap.get(file.dirPath) ?? [];
-      list.push(file);
-      dirMap.set(file.dirPath, list);
-    }
-
-    const dirItems: TreemapItem<{ dirPath: string; files: FileChurnMetric[] }>[] = [];
-    for (const [dirPath, files] of dirMap.entries()) {
-      const dirWeight = files.reduce((sum, f) => sum + f.size, 0);
-      dirItems.push({ id: dirPath, weight: dirWeight, data: { dirPath, files } });
-    }
+    const dirItems: TreemapItem<{ dirPath: string; files: FileChurnMetric[] }>[] = dirBranches.map(
+      (b) => ({
+        id: b.dirPath,
+        weight: b.files.reduce((sum, f) => sum + f.size, 0),
+        data: b,
+      }),
+    );
 
     const dirLayout = squarify(dirItems, { x: 0, y: 0, w: 100, h: 100 });
 
@@ -773,8 +945,6 @@ function renderOverviewMain(replay: Replay): HTMLElement {
     }
   }
 
-  const activeFiles =
-    zoomedDirPath !== null ? fileMetrics.filter((f) => f.dirPath === zoomedDirPath) : fileMetrics;
   const activeWeight = activeFiles.reduce((sum, f) => sum + f.size, 0);
   const activeAdditions = activeFiles.reduce((sum, f) => sum + f.additions, 0);
   const activeDeletions = activeFiles.reduce((sum, f) => sum + f.deletions, 0);
