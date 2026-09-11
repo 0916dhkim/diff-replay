@@ -683,7 +683,7 @@ function renderBranchContent(branch: DirectoryBranch, replay: Replay, depth = 1)
   const effectiveNode = compactToBranchingNode(branch.node);
   const subBranches = getChildBranches(effectiveNode);
 
-  if (depth < 2 && subBranches.length > 1) {
+  if (depth < 3 && subBranches.length > 1) {
     const subItems: TreemapItem<DirectoryBranch>[] = subBranches.map((sub) => ({
       id: sub.dirPath,
       weight: sub.files.reduce((sum, f) => sum + f.size, 0),
