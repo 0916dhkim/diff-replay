@@ -1266,6 +1266,29 @@ pre {
   border-radius: 6px;
   background: rgba(22, 27, 34, 0.5);
   overflow: hidden;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.treemap-dir-box:has(.treemap-dir-header.is-clickable:hover) {
+  border-color: #58a6ff;
+  box-shadow:
+    0 0 0 1px #58a6ff,
+    inset 0 0 28px rgba(56, 139, 253, 0.14),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+  background: rgba(20, 30, 46, 0.75);
+  z-index: 10;
+}
+
+.treemap-dir-box:has(.treemap-dir-header.is-clickable:hover) > .treemap-dir-header {
+  color: #ffffff;
+  background: transparent;
+}
+
+.treemap-dir-box:has(.treemap-dir-header.is-clickable:hover) > .treemap-dir-header .dir-loc {
+  color: var(--lime);
 }
 
 .treemap-dir-header {
@@ -1290,11 +1313,14 @@ pre {
   cursor: pointer;
   border-radius: 4px;
   padding: 0 4px;
-  transition: background 120ms ease;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
 }
 
 .treemap-dir-header.is-clickable:hover {
-  background: rgba(56, 139, 253, 0.2);
+  background: transparent;
+  color: #ffffff;
 }
 
 .treemap-dir-header.is-clickable:hover .dir-loc {
@@ -1331,6 +1357,29 @@ pre {
   border-radius: 5px;
   background: rgba(18, 24, 32, 0.45);
   overflow: hidden;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.treemap-sub-box:has(.treemap-sub-header:hover) {
+  border-color: #79c0ff;
+  box-shadow:
+    0 0 0 1px #79c0ff,
+    inset 0 0 20px rgba(56, 139, 253, 0.18),
+    0 6px 20px rgba(0, 0, 0, 0.55);
+  background: rgba(22, 34, 52, 0.7);
+  z-index: 20;
+}
+
+.treemap-sub-box:has(.treemap-sub-header:hover) > .treemap-sub-header {
+  color: #ffffff;
+  background: transparent;
+}
+
+.treemap-sub-box:has(.treemap-sub-header:hover) > .treemap-sub-header .dir-loc {
+  color: var(--lime);
 }
 
 .treemap-sub-header {
@@ -1352,11 +1401,13 @@ pre {
   cursor: pointer;
   border-radius: 3px;
   padding: 0 4px;
-  transition: background 120ms ease;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
 }
 
 .treemap-sub-header:hover {
-  background: rgba(56, 139, 253, 0.25);
+  background: transparent;
   color: #ffffff;
 }
 
