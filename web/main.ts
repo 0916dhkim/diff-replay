@@ -140,7 +140,39 @@ function parseOverviewHash(): { isOverview: boolean; folder: string | null } {
   return { isOverview: true, folder: null };
 }
 
-window.addEventListener("popstate", () => void route());
+function updateOverviewHash(folder: string | null): void {
+  const targetHash = folder ? `#overview:${encodeURIComponent(folder)}` : "#overview";
+  if (window.location.hash !== targetHash) {
+    window.history.pushState({}, "", targetHash);
+  }
+}
+
+function clearOverviewHash(): void {
+  if (window.location.hash.startsWith("#overview")) {
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+}
+
+window.addEventListener("popstate", () => {
+  if (currentReplay && window.location.pathname === `/replays/${currentReplay.id}`) {
+    const { isOverview, folder } = parseOverviewHash();
+    console.log("[DEBUG] popstate within same replay:", {
+      currentOverview: isOverviewActive,
+      targetOverview: isOverview,
+      currentFolder: zoomedDirPath,
+      targetFolder: folder,
+      hash: window.location.hash,
+    });
+    if (isOverviewActive !== isOverview || zoomedDirPath !== folder) {
+      isOverviewActive = isOverview;
+      zoomedDirPath = folder;
+      renderReplay(currentReplay, "popstate-in-replay");
+    }
+    return;
+  }
+  void route();
+});
+
 window.addEventListener("hashchange", () => {
   if (currentReplay) {
     const { isOverview, folder } = parseOverviewHash();
@@ -166,15 +198,13 @@ window.addEventListener("keydown", (event) => {
       event.preventDefault();
       console.log("[DEBUG] Escape pressed -> zoom out to root");
       zoomedDirPath = null;
-      window.location.hash = "overview";
+      updateOverviewHash(null);
       renderReplay(currentReplay, "escape-zoom-out");
     } else {
       event.preventDefault();
       console.log("[DEBUG] Escape pressed -> exit overview to review");
       isOverviewActive = false;
-      if (window.location.hash.startsWith("#overview")) {
-        window.history.replaceState({}, "", window.location.pathname);
-      }
+      clearOverviewHash();
       renderReplay(currentReplay, "escape-exit-overview");
     }
     return;
@@ -184,9 +214,7 @@ window.addEventListener("keydown", (event) => {
     if (isOverviewActive) {
       isOverviewActive = false;
       zoomedDirPath = null;
-      if (window.location.hash.startsWith("#overview")) {
-        window.history.replaceState({}, "", window.location.pathname);
-      }
+      clearOverviewHash();
       renderReplay(currentReplay, "space-exit-overview");
     } else {
       void approveAndAdvance();
@@ -204,9 +232,9 @@ window.addEventListener("keydown", (event) => {
     isOverviewActive = !isOverviewActive;
     zoomedDirPath = null;
     if (isOverviewActive) {
-      window.location.hash = "overview";
-    } else if (window.location.hash.startsWith("#overview")) {
-      window.history.replaceState({}, "", window.location.pathname);
+      updateOverviewHash(null);
+    } else {
+      clearOverviewHash();
     }
     renderReplay(currentReplay, "key-m-toggle");
   }
@@ -597,7 +625,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         element("button", { className: "breadcrumb-btn", text: "📁 All Folders" }, [], () => {
           console.log("[DEBUG] Zooming out to root via breadcrumb link");
           zoomedDirPath = null;
-          window.location.hash = "overview";
+          updateOverviewHash(null);
           renderReplay(replay, "breadcrumb-root-click");
         }),
         element("span", { className: "breadcrumb-sep", text: "/" }),
@@ -606,7 +634,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
       button("← Back to all folders (Esc)", "breadcrumb-back-btn", () => {
         console.log("[DEBUG] Zooming out to root via back button");
         zoomedDirPath = null;
-        window.location.hash = "overview";
+        updateOverviewHash(null);
         renderReplay(replay, "breadcrumb-back-button");
       }),
     ]);
@@ -702,8 +730,9 @@ function renderOverviewMain(replay: Replay): HTMLElement {
         ],
         () => {
           console.log("[DEBUG] Zooming into folder:", dirRect.item.data.dirPath);
+          isOverviewActive = true;
           zoomedDirPath = dirRect.item.data.dirPath;
-          window.location.hash = `overview:${encodeURIComponent(zoomedDirPath)}`;
+          updateOverviewHash(zoomedDirPath);
           renderReplay(replay, "zoom-folder-click");
         },
       );
@@ -766,9 +795,7 @@ function renderOverviewMain(replay: Replay): HTMLElement {
           console.log("[DEBUG] Exiting overview via Back to review button");
           isOverviewActive = false;
           zoomedDirPath = null;
-          if (window.location.hash.startsWith("#overview")) {
-            window.history.replaceState({}, "", window.location.pathname);
-          }
+          clearOverviewHash();
           renderReplay(replay, "back-to-review-button");
         }),
       ]),
@@ -939,7 +966,7 @@ function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number
       console.log("[DEBUG] Clicked rootRow (Stack Overview in sidebar)");
       isOverviewActive = true;
       zoomedDirPath = null;
-      window.location.hash = "overview";
+      updateOverviewHash(null);
       renderReplay(replay, "root-row-click");
     },
   );
@@ -984,9 +1011,7 @@ function renderStepRail(replay: Replay, activeStep: AtomicStep, approved: number
       () => {
         isOverviewActive = false;
         zoomedDirPath = null;
-        if (window.location.hash.startsWith("#overview")) {
-          window.history.replaceState({}, "", window.location.pathname);
-        }
+        clearOverviewHash();
         void selectStep(step.stepId);
       },
     );
