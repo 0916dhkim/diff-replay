@@ -889,6 +889,17 @@ pre {
   cursor: pointer;
 }
 
+.note.is-clickable:hover {
+  border-color: rgba(88, 166, 255, 0.4);
+  background: #141c28;
+}
+
+.note.is-clickable:focus-visible {
+  outline: none;
+  border-color: #388bfd;
+  box-shadow: 0 0 0 2px rgba(56, 139, 253, 0.3);
+}
+
 .note.active {
   border-color: #388bfd;
   border-left-color: #58a6ff;
@@ -903,7 +914,7 @@ pre {
 }
 
 .step-pill {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 2px 7px;
@@ -915,9 +926,8 @@ pre {
   font-size: 9.5px;
   font-weight: 600;
   margin-bottom: 6px;
-  width: 100%;
+  width: fit-content;
   box-sizing: border-box;
-  cursor: pointer;
   transition: all 120ms ease;
 }
 

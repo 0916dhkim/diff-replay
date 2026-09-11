@@ -95,6 +95,20 @@ export function ReviewNotes(props: ReviewNotesProps) {
               return (
                 <article
                   class={`note shelf-card ${hasStep ? "is-clickable" : ""} ${isActive() ? "active" : ""} ${isEditing() ? "editing" : ""}`}
+                  role={hasStep && !isEditing() ? "button" : undefined}
+                  tabindex={hasStep && !isEditing() ? 0 : undefined}
+                  onClick={() => {
+                    if (isEditing()) return;
+                    if (hasStep && note.stepId) {
+                      props.onSelectStep(note.stepId);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (isEditing()) return;
+                    if (e.key === "Enter" && hasStep && note.stepId) {
+                      props.onSelectStep(note.stepId);
+                    }
+                  }}
                 >
                   <Show
                     when={isEditing()}
@@ -104,17 +118,12 @@ export function ReviewNotes(props: ReviewNotesProps) {
                           class={`step-pill ${hasStep ? "" : "general"}`}
                           title={
                             hasStep
-                              ? `Step ${stepIndex() + 1} · ${stepObj()?.action ?? note.stepId} (click to jump)`
+                              ? `Step ${stepIndex() + 1} · ${stepObj()?.action ?? note.stepId}`
                               : "General Review Note"
                           }
-                          onClick={() => {
-                            if (hasStep && note.stepId) props.onSelectStep(note.stepId);
-                          }}
                         >
                           <Show when={hasStep} fallback={<span>General Note</span>}>
                             <span class="step-pill-tag">Step {stepIndex() + 1}</span>
-                            <span>·</span>
-                            <span class="step-pill-id">{stepObj()?.action || note.stepId}</span>
                           </Show>
                         </div>
                         <p class="note-body">{note.text}</p>
@@ -167,10 +176,6 @@ export function ReviewNotes(props: ReviewNotesProps) {
                       <span class="step-pill-tag" style={{ color: "#ffffff" }}>
                         {hasStep ? `Editing · Step ${stepIndex() + 1}` : "Editing · General Note"}
                       </span>
-                      <Show when={hasStep}>
-                        <span>·</span>
-                        <span class="step-pill-id">{stepObj()?.action || note.stepId}</span>
-                      </Show>
                     </div>
                     <textarea
                       ref={editInputRef}
