@@ -195,7 +195,19 @@ export default function TreemapOverview(props: TreemapOverviewProps) {
     activeFiles().reduce((sum, file) => sum + file.deletions, 0),
   );
   const displayRoot = createMemo(() => compactToBranchingNode(tree()));
-  const dirBranches = createMemo(() => getChildBranches(displayRoot()));
+  const dirBranches = createMemo<DirectoryBranch[]>(() => {
+    const root = displayRoot();
+    if (root.fullPath !== "") {
+      return [
+        {
+          dirPath: root.fullPath,
+          node: root,
+          files: fileMetrics(),
+        },
+      ];
+    }
+    return getChildBranches(root);
+  });
   const dirLayout = createMemo(() => {
     const items: TreemapItem<DirectoryBranch>[] = dirBranches().map((branch) => ({
       id: branch.dirPath,
