@@ -543,14 +543,13 @@ function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
     const normalColHeight = currentRect.h;
 
     if (!isVertical) {
-      const MIN_READABLE_WIDTH = 110;
-      const widthTooShort = normalColWidth < MIN_READABLE_WIDTH;
-      const bothShort = normalColWidth < MIN_READABLE_WIDTH && normalColHeight < MIN_READABLE_WIDTH;
+      const widthShorterThanHeight = normalColWidth < normalColHeight;
+      const bothShort = normalColWidth < 60 && normalColHeight < 60;
 
       if (bothShort) {
         // 3. if the width and height is both short, normal short edge preference
         isVertical = false;
-      } else if (widthTooShort) {
+      } else if (widthShorterThanHeight) {
         // 2. if the width is too short, prefer the wide orientation
         isVertical = true;
       }
@@ -574,9 +573,8 @@ function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
         const h = isVertical ? rowThickness : itemLen;
 
         const normalAspect = Math.max(w / h, h / w);
-        const MIN_READABLE_WIDTH = 110;
-        const widthTooShort = w < MIN_READABLE_WIDTH && h > w;
-        const bothShort = w < MIN_READABLE_WIDTH && h < MIN_READABLE_WIDTH;
+        const widthTooShort = w < h;
+        const bothShort = w < 60 && h < 60;
 
         let score: number;
         if (bothShort) {
@@ -584,7 +582,7 @@ function squarify<T>(items: TreemapItem<T>[], rect: Rect): LayoutResult<T>[] {
           score = normalAspect;
         } else if (widthTooShort) {
           // 2. if the width is too short, prefer the wide orientation
-          score = (h / w) * (MIN_READABLE_WIDTH / Math.max(1, w)) * 2.5;
+          score = (h / w) * 3.5;
         } else {
           // 1. try normal short edge preference
           score = normalAspect;
