@@ -14,12 +14,23 @@ interface ReviewNotesProps {
 export function ReviewNotes(props: ReviewNotesProps) {
   const [noteText, setNoteText] = createSignal("");
 
-  const handleSubmit = (e: Event) => {
-    e.preventDefault();
+  const submitNote = () => {
     const val = noteText().trim();
     if (val) {
       props.onAddNote(val, props.isOverview ? undefined : props.activeStepId);
       setNoteText("");
+    }
+  };
+
+  const handleSubmit = (e: Event) => {
+    e.preventDefault();
+    submitNote();
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      submitNote();
     }
   };
 
@@ -88,6 +99,7 @@ export function ReviewNotes(props: ReviewNotesProps) {
           rows={3}
           value={noteText()}
           onInput={(e) => setNoteText(e.currentTarget.value)}
+          onKeyDown={handleKeyDown}
         />
         <button type="submit" class="button secondary">
           Add note
