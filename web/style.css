@@ -1502,7 +1502,7 @@ pre {
 }
 
 /* 5. Micro tiles (<16px height or <30px width): hide text to avoid visual clutter */
-@container (max-height: 16px), (max-width: 30px) {
+@container (max-height: 16px) or (max-width: 30px) {
   .treemap-file-name,
   .treemap-file-meta {
     display: none;
