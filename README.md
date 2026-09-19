@@ -61,15 +61,22 @@ Diff Replay manifests are produced by AI coding agents. The repository bundles a
   ```
 - **Cursor / Claude Code / other agents:** Load the instructions from [`skills/big-diff-replay/SKILL.md`](skills/big-diff-replay/SKILL.md) and the verification script into your agent's system prompt or workspace rules.
 
-### 6. Quick Test: Publish an Example Replay
+### 6. Quick Test: Prompt Your Agent
 
-Publish the bundled basic example:
+With the service running and the skill installed, test the end-to-end workflow by asking your agent to replay a pull request or branch:
 
-```bash
-pnpm diff-replay publish examples/basic.json
-```
+> **"Diff replay this PR \<url\>"**  
+> _(or "Diff replay current branch against main")_
 
-The command outputs a stable replay URL (e.g. `http://127.0.0.1:7890/replays/example-id`). Open it in your browser to inspect the viewer.
+Your agent will autonomously:
+
+1. Verify the persistent service is reachable (`http://127.0.0.1:7890/api/health`).
+2. Retrieve the raw diff using `gh pr diff` or `git diff`.
+3. Decompose the diff into causally ordered, single-concept review steps.
+4. Mechanically verify exact line-by-line coverage using `verify-diff-sum.js`.
+5. Publish the manifest and return the local review URL (`http://127.0.0.1:7890/replays/<id>`).
+
+_(Optional manual smoke test without an agent: `pnpm diff-replay publish examples/basic.json`)_
 
 ---
 
