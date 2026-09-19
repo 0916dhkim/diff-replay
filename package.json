@@ -8,7 +8,9 @@
   },
   "files": [
     "dist",
+    "docs",
     "examples",
+    "skills",
     "LICENSE",
     "README.md"
   ],

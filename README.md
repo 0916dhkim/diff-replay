@@ -1,95 +1,88 @@
 # Diff Replay
 
-Diff Replay is a persistent local viewer for reviewing large diffs as a sequence of small,
-understandable steps. One server can host many independent replays, so agents publish review
-manifests instead of starting a new web server for every session.
+Diff Replay is a persistent local viewer and review workflow for large diffs, PR stacks, and complex branch changes. Instead of forcing reviewers to digest massive single diffs or running ad-hoc throwaway servers, Diff Replay breaks changes into small, causally ordered, reviewable steps hosted on a single persistent background service.
 
-## Quick start
+## Core Concepts
+
+- **Persistent Local Service:** One lightweight Fastify server hosts all replays on your machine. Agents publish manifests to it; you view and review them at any time.
+- **Semantic Decomposition:** Large changes are decomposed in authoring order: foundations $\rightarrow$ core behavior $\rightarrow$ integration $\rightarrow$ tests and codegen.
+- **Exact Line Fidelity:** Every added and deleted line across all steps is mechanically verified against the original source diff before publishing.
+- **Approval Persistence:** Diff Replay hashes canonical reviewed content (excluding volatile hunk line shifts, git index headers, and unchanged context), so approvals and notes survive refactors and re-syncs.
+
+---
+
+## Setup
+
+### 1. Prerequisites
+
+- **Node.js:** `>= 22`
+- **pnpm:** `>= 9` (tested with pnpm 12)
+
+### 2. Clone and Build
 
 ```bash
+git clone https://github.com/0916dhkim/diff-replay.git
+cd diff-replay
 pnpm install
 pnpm build
+```
+
+### 3. Run the Service
+
+You can run Diff Replay in the foreground for testing:
+
+```bash
 pnpm start
 ```
 
-Open [http://127.0.0.1:7890](http://127.0.0.1:7890). Replay data is stored as one atomic,
-validated snapshot per replay under `~/.diff-replay/replays` by default.
+The web interface is available at `http://127.0.0.1:7890`.
 
-To develop the server and UI with live reload, run these in separate terminals:
+#### Recommended: Run as a Persistent Daemon
 
-```bash
-pnpm dev:server
-pnpm dev
-```
+To ensure the service is always available for your AI agents and review sessions:
 
-The Vite development UI runs at `http://127.0.0.1:7891` and proxies API requests to the service.
+- **macOS (launchd):** See [Daemon Setup (launchd)](docs/daemon-setup.md#macos-launchd) for configuring a `com.diff-replay.serve` agent.
+- **Linux (systemd):** See [Daemon Setup (systemd)](docs/daemon-setup.md#linux-systemd-user-service) for configuring a user service.
 
-## Publish a replay
-
-Create a manifest:
-
-```json
-{
-  "sourceKey": "github.com/acme/widgets#pull/42",
-  "title": "Add widget sharing",
-  "repository": "acme/widgets",
-  "baseRef": "main",
-  "headRef": "feature/widget-sharing",
-  "steps": [
-    {
-      "stepId": "api-route",
-      "action": "Add the sharing route",
-      "takeaway": "Introduces the authenticated endpoint used to share a widget.",
-      "risk": "Medium",
-      "filePath": "src/routes/share.ts",
-      "fileName": "share.ts",
-      "diff": "diff --git a/src/routes/share.ts b/src/routes/share.ts\n...",
-      "isCodegen": false,
-      "isTest": false
-    }
-  ]
-}
-```
-
-Publish it with the CLI:
+### 4. Verify Service Health
 
 ```bash
-pnpm diff-replay publish ./manifest.json
+curl -fsS http://127.0.0.1:7890/api/health
+# {"ok":true}
 ```
 
-You can try the bundled example with `pnpm diff-replay publish examples/basic.json`.
+### 5. Install the AI Agent Skill
 
-The command prints the stable replay URL. Publishing the same `sourceKey` updates the existing
-replay. The server derives a canonical review content hash for each step (`diffHash` is optional on
-input and ignored), so approvals and flags survive across hunk line shifts and volatile diff
-metadata as long as the step keeps its `stepId` and reviewed changes. Notes remain as accumulated
-review history.
+Diff Replay manifests are produced by AI coding agents. The repository bundles an example agent skill under [`skills/big-diff-replay/`](skills/big-diff-replay/):
 
-## API
+- **OpenCode:** Copy `skills/big-diff-replay` into your local configuration:
+  ```bash
+  cp -r skills/big-diff-replay ~/.config/opencode/skills/
+  ```
+- **Cursor / Claude Code / other agents:** Load the instructions from [`skills/big-diff-replay/SKILL.md`](skills/big-diff-replay/SKILL.md) and the verification script into your agent's system prompt or workspace rules.
 
-| Method   | Path                             | Purpose                                 |
-| -------- | -------------------------------- | --------------------------------------- |
-| `GET`    | `/api/health`                    | Check whether the service is ready      |
-| `GET`    | `/api/replays`                   | List all replays                        |
-| `POST`   | `/api/replays`                   | Create or synchronize a replay manifest |
-| `GET`    | `/api/replays/:id`               | Read one replay                         |
-| `GET`    | `/api/replays/:id/events`        | Subscribe to replay-scoped SSE updates  |
-| `PATCH`  | `/api/replays/:id/state`         | Select the active step                  |
-| `PATCH`  | `/api/replays/:id/steps/:stepId` | Approve, flag, or reset one step        |
-| `POST`   | `/api/replays/:id/notes`         | Add a review note                       |
-| `DELETE` | `/api/replays/:id/notes/:noteId` | Delete a review note                    |
+### 6. Quick Test: Publish an Example Replay
 
-Set `DIFF_REPLAY_HOST`, `DIFF_REPLAY_PORT`, or `DIFF_REPLAY_DATA_DIR` to override server defaults.
-The service binds to `127.0.0.1` by default and has no authentication; do not expose it publicly.
-Replay manifests may be up to 100 MiB and contain up to 10,000 uniquely identified steps.
+Publish the bundled basic example:
 
-## Design boundary
+```bash
+pnpm diff-replay publish examples/basic.json
+```
 
-Diff Replay stores, synchronizes, and presents replay manifests. The server derives canonical
-review hashes so approvals survive hunk line shifts and patch-metadata-only noise. The producer
-that understands the source diff remains responsible for semantic decomposition, stable step IDs,
-narrative ordering, and exact verification that the steps sum to the original diff.
+The command outputs a stable replay URL (e.g. `http://127.0.0.1:7890/replays/example-id`). Open it in your browser to inspect the viewer.
+
+---
+
+## Documentation
+
+- [Agent Skill & Decomposition Workflow](skills/big-diff-replay/SKILL.md)
+- [Replay Manifest Schema & Rules](docs/manifest-format.md)
+- [HTTP & SSE API Reference](docs/api.md)
+- [Daemon Setup (macOS launchd & Linux systemd)](docs/daemon-setup.md)
+- [Development Guide](docs/development.md)
+
+---
 
 ## License
 
-MIT
+[MIT](LICENSE)
