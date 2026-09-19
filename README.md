@@ -76,8 +76,6 @@ Your agent will autonomously:
 4. Mechanically verify exact line-by-line coverage using `verify-diff-sum.js`.
 5. Publish the manifest and return the local review URL (`http://127.0.0.1:7890/replays/<id>`).
 
-_(Optional manual smoke test without an agent: `pnpm diff-replay publish examples/basic.json`)_
-
 ---
 
 ## Documentation

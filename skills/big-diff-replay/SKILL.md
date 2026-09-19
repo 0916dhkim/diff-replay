@@ -114,11 +114,5 @@ curl -fsS -X POST \
   http://127.0.0.1:7890/api/replays
 ```
 
-Alternatively, use the CLI:
-
-```bash
-pnpm diff-replay publish replay-manifest.json
-```
-
 Return the stable URL `http://127.0.0.1:7890/replays/<id>`. The service owns UI, state, notes,
 approval invalidation, persistence, and live updates.

@@ -9,7 +9,7 @@ Diff Replay consists of:
 - **Backend (`src/`):** A Fastify server written in TypeScript. Handles replay persistence, SSE event broadcasts, and canonical diff hashing.
 - **Frontend (`web/`):** A single-page application built with SolidJS 2.0 and Vite 8. Renders unified diffs, steps list, notes, and approval states.
 - **Storage (`src/storage.ts`):** Stores atomic replay snapshots as JSON files under `~/.diff-replay/replays/`.
-- **CLI (`src/cli.ts`):** Executable entry point (`diff-replay serve` and `diff-replay publish`).
+- **CLI (`src/cli.ts`):** Executable entry point (`diff-replay [serve]`).
 
 ---
 

@@ -67,8 +67,7 @@ function EmptyState() {
     <section class="empty-state">
       <div class="empty-glyph">±</div>
       <h2>No replays yet</h2>
-      <p>Publish a manifest and it will appear here.</p>
-      <code>diff-replay publish ./manifest.json</code>
+      <p>Prompt your agent to create a replay for your PR or branch.</p>
     </section>
   );
 }
