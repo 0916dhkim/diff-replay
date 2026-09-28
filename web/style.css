@@ -236,6 +236,19 @@ pre {
   overflow: hidden;
 }
 
+.workspace.offline-workspace {
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+}
+
+.offline-warning {
+  margin: 0;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--orange);
+  color: var(--orange);
+  background: var(--surface);
+  font-size: 12px;
+}
+
 .workspace.sidebars-hidden {
   grid-template-columns: minmax(0, 1fr);
 }

@@ -185,6 +185,52 @@ describe("replay API", () => {
     }
   });
 
+  it("downloads a standalone HTML snapshot for a single replay", async () => {
+    const publicDirectory = path.join(directory, "export-public");
+    await mkdir(path.join(publicDirectory, "assets"), { recursive: true });
+    await writeFile(path.join(publicDirectory, "index.html"), "<title>Diff Replay</title>");
+    await writeFile(
+      path.join(publicDirectory, "offline.html"),
+      '<link rel="stylesheet" crossorigin href="/assets/offline.css"><script type="module" crossorigin src="/assets/offline.js"></script>',
+    );
+    await writeFile(path.join(publicDirectory, "assets/offline.css"), "body{color:red}");
+    await writeFile(path.join(publicDirectory, "assets/offline.js"), 'console.log("offline")');
+    const productionApp = await createApp({
+      store: new ReplayStore(path.join(directory, "export-production")),
+      publicDirectory,
+    });
+
+    try {
+      const created = await productionApp.inject({
+        method: "POST",
+        url: "/api/replays",
+        payload: makeReplay("repo#offline-export"),
+      });
+      const replay = created.json<{ replay: Replay }>().replay;
+      const response = await productionApp.inject({
+        method: "GET",
+        url: `/api/replays/${replay.id}/export.html`,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.headers["content-disposition"]).toBe(
+        `attachment; filename="diff-replay-${replay.id}.html"`,
+      );
+      expect(response.headers["cache-control"]).toBe("no-store");
+      expect(response.body).toContain(replay.id);
+      expect(response.body).toContain("console.log");
+      expect(
+        (
+          await productionApp.inject({
+            method: "GET",
+            url: "/api/replays/deadbeefdeadbeef/export.html",
+          })
+        ).statusCode,
+      ).toBe(404);
+    } finally {
+      await productionApp.close();
+    }
+  });
+
   it("accepts a manifest without diffHash and returns derived canonical hashes", async () => {
     const payload = {
       sourceKey: "repo#no-diff-hash",

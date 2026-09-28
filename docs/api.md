@@ -12,6 +12,7 @@ Diff Replay exposes a Fastify REST and SSE API on port `7890` by default.
 | `GET`    | `/api/replays`                   | List all stored replays                                |
 | `POST`   | `/api/replays`                   | Create or synchronize a replay                         |
 | `GET`    | `/api/replays/:id`               | Retrieve a replay by ID                                |
+| `GET`    | `/api/replays/:id/export.html`   | Download a self-contained offline HTML viewer          |
 | `GET`    | `/api/replays/:id/events`        | Subscribe to live SSE updates for a replay             |
 | `PATCH`  | `/api/replays/:id/state`         | Update active step selection                           |
 | `PATCH`  | `/api/replays/:id/steps/:stepId` | Set step review status (`approved`, `flagged`, `null`) |
@@ -81,6 +82,12 @@ Creates a new replay or synchronizes an existing one if the `sourceKey` already 
 ### `GET /api/replays/:id`
 
 Retrieves the complete replay snapshot including steps, approvals, notes, and active state.
+
+---
+
+### `GET /api/replays/:id/export.html`
+
+Downloads a single HTML file with this replay's steps, diffs, Stack Overview, and current approval snapshot. Notes are omitted. The exported viewer makes no server requests; later approval changes are stored in the browser and do not sync back to the service. Browser storage for a directly opened `file://` page varies by browser and can be cleared with browser data. Available when the built web UI is enabled, not in `--api-only` mode.
 
 ---
 

@@ -7,6 +7,7 @@ interface ReviewHeaderProps {
   onChangeViewMode: (mode: "split" | "unified") => void;
   onBackToHome: () => void;
   onApproveAndAdvance: () => void;
+  onExport: () => void;
 }
 
 export default function ReviewHeader(props: ReviewHeaderProps) {
@@ -24,6 +25,13 @@ export default function ReviewHeader(props: ReviewHeaderProps) {
         </Show>
       </div>
       <div class="header-actions">
+        <button
+          class="button"
+          onClick={props.onExport}
+          title="Download this replay as an offline HTML file"
+        >
+          Export HTML
+        </button>
         <Show when={!props.isOverview}>
           <div class="segments">
             <button

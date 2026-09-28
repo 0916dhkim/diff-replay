@@ -13,6 +13,7 @@ import {
   updateNoteSchema,
 } from "./contracts.js";
 import { InvalidReplayMutationError, ReplayNotFoundError, ReplayStore } from "./storage.js";
+import { renderOfflineHtml } from "./export-html.js";
 
 interface CreateAppOptions {
   store: ReplayStore;
@@ -153,6 +154,19 @@ export async function createApp(options: CreateAppOptions): Promise<FastifyInsta
   );
 
   if (options.publicDirectory) {
+    const publicDirectory = options.publicDirectory;
+    app.get<{ Params: { replayId: string } }>(
+      "/api/replays/:replayId/export.html",
+      async (request, reply) => {
+        const replay = await options.store.get(request.params.replayId);
+        const html = await renderOfflineHtml(publicDirectory, replay);
+        return reply
+          .header("Content-Disposition", `attachment; filename="diff-replay-${replay.id}.html"`)
+          .header("Cache-Control", "no-store")
+          .type("text/html; charset=utf-8")
+          .send(html);
+      },
+    );
     await app.register(fastifyStatic, {
       index: false,
       root: options.publicDirectory,

@@ -439,6 +439,13 @@ export function App() {
               onChangeViewMode={setViewMode}
               onBackToHome={() => navigate("/")}
               onApproveAndAdvance={() => void approveAndAdvance()}
+              onExport={() => {
+                const replay = currentReplay();
+                if (!replay) return;
+                const link = document.createElement("a");
+                link.href = `/api/replays/${replay.id}/export.html`;
+                link.click();
+              }}
             />
             <Show
               when={isOverview()}
