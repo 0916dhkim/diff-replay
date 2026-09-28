@@ -24,7 +24,16 @@ export async function renderOfflineHtml(publicDirectory: string, replay: Replay)
     inlineAsset(publicDirectory, scriptPath),
     inlineAsset(publicDirectory, cssPath),
   ]);
-  const snapshot: Replay = { ...replay, state: { ...replay.state, notes: [] } };
+  // Export a fresh review. The browser may independently restore its own local
+  // progress for this replay, but server decisions and notes never enter the file.
+  const snapshot: Replay = {
+    ...replay,
+    state: {
+      activeStepId: replay.steps[0]?.stepId ?? replay.state.activeStepId,
+      stepStatus: {},
+      notes: [],
+    },
+  };
   // Never allow untrusted diff/title text to terminate the JSON script element.
   const json = JSON.stringify(snapshot).replace(
     /[<>&\u2028\u2029]/g,

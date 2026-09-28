@@ -14,7 +14,7 @@ describe("offline HTML export", () => {
     if (directory) await rm(directory, { recursive: true, force: true });
   });
 
-  it("embeds assets and replay safely, retaining the Google Fonts import but not notes", async () => {
+  it("embeds assets and a fresh review safely, retaining the Google Fonts import", async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), "diff-replay-export-test-"));
     await mkdir(path.join(directory, "assets"));
     await writeFile(
@@ -31,12 +31,13 @@ describe("offline HTML export", () => {
       id: "0123456789abcdef",
       title: "</script><img src=x onerror=alert(1)>",
       state: {
-        activeStepId: "one",
+        activeStepId: "two",
         stepStatus: { one: "approved" },
         notes: [{ text: "private note" }],
       },
       steps: [
         { stepId: "one", diffHash: "a".repeat(64), diff: "</script><script>alert(1)</script>" },
+        { stepId: "two", diffHash: "b".repeat(64), diff: "+second step" },
       ],
     } as unknown as Replay;
 
@@ -47,7 +48,13 @@ describe("offline HTML export", () => {
     expect(html).not.toContain("private note");
     expect(html).not.toContain("</script><img src=x onerror=alert(1)>");
     expect(html).toContain("\\u003c/script\\u003e");
-    expect(html).toContain('"stepStatus":{"one":"approved"}');
+    const embedded = html.match(
+      /<script id="replay-data" type="application\/json">([^<]*)<\/script>/,
+    )?.[1];
+    expect(embedded).toBeDefined();
+    const exported = JSON.parse(embedded!) as Replay;
+    expect(exported.state).toEqual({ activeStepId: "one", stepStatus: {}, notes: [] });
+    expect(exported.steps).toHaveLength(2);
     expect(html).toContain("body{color:red}");
     expect(html).toContain('document.title="Offline";');
   });

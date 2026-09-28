@@ -87,7 +87,7 @@ Retrieves the complete replay snapshot including steps, approvals, notes, and ac
 
 ### `GET /api/replays/:id/export.html`
 
-Downloads a single HTML file with this replay's steps, diffs, Stack Overview, and current approval snapshot. Notes are omitted. The viewer's JavaScript, CSS, and replay data are embedded; like the online viewer, its stylesheet imports Google Fonts when network access is available and falls back to system fonts otherwise. It makes no Diff Replay server requests. Later approval changes are stored in the browser and do not sync back to the service. Browser storage for a directly opened `file://` page varies by browser and can be cleared with browser data. Available when the built web UI is enabled, not in `--api-only` mode.
+Downloads a single HTML file with this replay's steps, diffs, and Stack Overview. Server-side approvals and notes are omitted, and the initial selection is the first step. The viewer's JavaScript, CSS, and replay data are embedded; like the online viewer, its stylesheet imports Google Fonts when network access is available and falls back to system fonts otherwise. It makes no Diff Replay server requests. Approval changes are stored in the browser and do not sync back to the service; previously saved browser-local approvals for this replay may still be restored. Browser storage for a directly opened `file://` page varies by browser and can be cleared with browser data. Available when the built web UI is enabled, not in `--api-only` mode.
 
 ---
 

@@ -207,6 +207,16 @@ describe("replay API", () => {
         payload: makeReplay("repo#offline-export"),
       });
       const replay = created.json<{ replay: Replay }>().replay;
+      await productionApp.inject({
+        method: "PATCH",
+        url: `/api/replays/${replay.id}/steps/${replay.steps[0]!.stepId}`,
+        payload: { status: "approved" },
+      });
+      await productionApp.inject({
+        method: "POST",
+        url: `/api/replays/${replay.id}/notes`,
+        payload: { text: "Server-only note" },
+      });
       const response = await productionApp.inject({
         method: "GET",
         url: `/api/replays/${replay.id}/export.html`,
@@ -218,6 +228,23 @@ describe("replay API", () => {
       expect(response.headers["cache-control"]).toBe("no-store");
       expect(response.body).toContain(replay.id);
       expect(response.body).toContain("console.log");
+      const embedded = response.body.match(
+        /<script id="replay-data" type="application\/json">([^<]*)<\/script>/,
+      )?.[1];
+      expect(embedded).toBeDefined();
+      expect((JSON.parse(embedded!) as Replay).state).toEqual({
+        activeStepId: replay.steps[0]!.stepId,
+        stepStatus: {},
+        notes: [],
+      });
+      const serverState = (
+        await productionApp.inject({
+          method: "GET",
+          url: `/api/replays/${replay.id}`,
+        })
+      ).json<{ replay: Replay }>().replay.state;
+      expect(serverState.stepStatus[replay.steps[0]!.stepId]).toBe("approved");
+      expect(serverState.notes).toHaveLength(1);
       expect(
         (
           await productionApp.inject({
