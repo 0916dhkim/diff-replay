@@ -1147,6 +1147,14 @@ pre {
     grid-template-rows: minmax(0, 1fr) 300px;
   }
 
+  .workspace.offline-workspace {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .offline-workspace .step-rail {
+    grid-row: 1;
+  }
+
   .notes-panel {
     grid-column: 2;
     grid-row: 2;

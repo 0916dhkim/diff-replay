@@ -5,33 +5,46 @@ interface ReviewHeaderProps {
   isOverview: boolean;
   viewMode: "split" | "unified";
   onChangeViewMode: (mode: "split" | "unified") => void;
-  onBackToHome: () => void;
+  onBackToHome?: () => void;
   onApproveAndAdvance: () => void;
-  onExport: () => void;
+  onExport?: () => void;
+  offlineLabel?: boolean;
 }
 
 export default function ReviewHeader(props: ReviewHeaderProps) {
   return (
     <header class="review-header">
       <div class="review-heading">
-        <button class="back-button" onClick={props.onBackToHome}>
-          Diff Replay
-        </button>
+        <Show when={props.onBackToHome} fallback={<span>Diff Replay</span>}>
+          {(onHome) => (
+            <button class="back-button" onClick={onHome()}>
+              Diff Replay
+            </button>
+          )}
+        </Show>
         <span class="header-divider">/</span>
         <strong>{props.title}</strong>
+        <Show when={props.offlineLabel}>
+          <span class="header-divider">/</span>
+          <span style={{ color: "var(--lime)" }}>Offline export</span>
+        </Show>
         <Show when={props.isOverview}>
           <span class="header-divider">/</span>
           <span style={{ color: "var(--lime)", "font-weight": "600" }}>Stack Overview</span>
         </Show>
       </div>
       <div class="header-actions">
-        <button
-          class="button"
-          onClick={props.onExport}
-          title="Download this replay as an offline HTML file"
-        >
-          Export HTML
-        </button>
+        <Show when={props.onExport}>
+          {(onExport) => (
+            <button
+              class="button secondary"
+              onClick={onExport()}
+              title="Download this replay as an offline HTML file"
+            >
+              Export HTML
+            </button>
+          )}
+        </Show>
         <Show when={!props.isOverview}>
           <div class="segments">
             <button
