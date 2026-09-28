@@ -24,11 +24,6 @@ export async function renderOfflineHtml(publicDirectory: string, replay: Replay)
     inlineAsset(publicDirectory, scriptPath),
     inlineAsset(publicDirectory, cssPath),
   ]);
-  // The online CSS imports Google Fonts. Offline exports must make no requests.
-  const offlineCss = css.replace(
-    /@import\s+(?:url\(\s*)?(["'])https:\/\/fonts\.googleapis\.com\/.*?\1\s*\)?\s*;/g,
-    "",
-  );
   const snapshot: Replay = { ...replay, state: { ...replay.state, notes: [] } };
   // Never allow untrusted diff/title text to terminate the JSON script element.
   const json = JSON.stringify(snapshot).replace(
@@ -38,10 +33,7 @@ export async function renderOfflineHtml(publicDirectory: string, replay: Replay)
 
   // Use replacement functions: minified bundles contain `$&`, `$'`, etc., which
   // String.replace would interpret as substitutions in a replacement string.
-  html = html.replace(
-    stylesheet,
-    () => `<style>${offlineCss.replace(/<\/style/gi, "<\\/style")}</style>`,
-  );
+  html = html.replace(stylesheet, () => `<style>${css.replace(/<\/style/gi, "<\\/style")}</style>`);
   html = html.replace(
     script,
     () =>

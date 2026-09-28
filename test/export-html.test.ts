@@ -14,7 +14,7 @@ describe("offline HTML export", () => {
     if (directory) await rm(directory, { recursive: true, force: true });
   });
 
-  it("embeds assets and replay safely without external dependencies or notes", async () => {
+  it("embeds assets and replay safely, retaining the Google Fonts import but not notes", async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), "diff-replay-export-test-"));
     await mkdir(path.join(directory, "assets"));
     await writeFile(
@@ -43,7 +43,7 @@ describe("offline HTML export", () => {
     const html = await renderOfflineHtml(directory, replay);
     expect(html).not.toContain('src="/assets/');
     expect(html).not.toContain('href="/assets/');
-    expect(html).not.toContain("fonts.googleapis.com");
+    expect(html).toContain('@import url("https://fonts.googleapis.com/css2?family=Manrope");');
     expect(html).not.toContain("private note");
     expect(html).not.toContain("</script><img src=x onerror=alert(1)>");
     expect(html).toContain("\\u003c/script\\u003e");
@@ -72,7 +72,9 @@ describe("offline HTML export", () => {
     const html = await renderOfflineHtml(directory, replay);
     expect(html).toContain('const source="$& $` $\'";');
     expect(html).not.toContain('src="/assets/');
-    expect(html).not.toContain("fonts.googleapis.com");
+    expect(html).toContain(
+      '@import "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500&display=swap";',
+    );
   });
 
   it("rejects a missing offline build rather than returning a broken download", async () => {
